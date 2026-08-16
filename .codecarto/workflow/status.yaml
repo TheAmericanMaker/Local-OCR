@@ -1,7 +1,7 @@
 project_name: Local-OCR
 pipeline: workflow/pipeline-full-with-deep-audit.yaml
-current_phase: contracts
-last_updated: "2026-08-16T19:15:09.786Z"
+current_phase: defect-scan-semantic
+last_updated: "2026-08-16T19:24:57.130Z"
 schema_version: 1
 phases:
   architecture:
@@ -28,18 +28,6 @@ phases:
         description: "No test-runner configuration is committed. .gitignore references .pytest_cache/, implying pytest, but the tests are written against unittest and either runner would execute them. The canonical command is unstated."
         deferred_reason: "A maintainer convention question rather than a code fact; no pipeline phase can derive the intended command from source."
     carry_forward:
-      -
-        id: arch-CF3
-        kind: defer-to-phase
-        description: "The worker-to-UI event catalog (log, progress, page_image, page_text, stream_chunk, models_loaded, refresh_error, ocr_success, ocr_error) is enumerated by name and dispatch site, but payload schemas, ordering guarantees, and the OperationState transition table are not formalized."
-        deferred_reason: "Event catalogs, wire shapes, and state machines are the protocols phase's rubric; specifying them here would duplicate that work and risk drift."
-        target_phase: protocols
-      -
-        id: arch-CF4
-        kind: defer-to-phase
-        description: "Per-surface behavioral contracts - every validation error string, the overwrite-confirmation flow, DPI/model/URL defaults, and a black-box acceptance list - are visible in app.py and ocr_service.py but not recovered as contracts. The ~1,540 lines of tests are the richest evidence source and were deliberately not mined."
-        deferred_reason: "Trigger/defaults/side-effects/error-behavior recovery is the contracts phase's rubric, and its skill directs mining tests as behavioral evidence."
-        target_phase: contracts
       -
         id: arch-CF5
         kind: defer-to-phase
@@ -90,17 +78,79 @@ phases:
         deferred_reason: "Spec-versus-implementation drift is pass 5's rubric and requires the contracts phase's recovered contracts to compare against systematically."
         target_phase: defect-scan-semantic
   contracts:
-    status: pending
-    owner_notes: []
-    outputs_present: []
-    open_questions: []
-    carry_forward: []
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/contracts/behavioral-contracts.md"
+      - "Validation: PASS"
+      - "The ~1,540 lines of tests are the real specification. They pin exact error strings, event ordering, cleanup guarantees, and the three progress formulas far more precisely than the README does. 13 feature contracts and 40 acceptance scenarios were recovered almost entirely from them."
+      - "The most consequential contract: the OCR run is an all-or-nothing transaction. Two tests explicitly assert that a failure on page N discards pages 1..N-1 and preserves any prior output file. The mechanical scan rated this high (D2.1) - the tests show it is deliberate and locked in, so changing it in a port breaks passing tests rather than fixing a bug."
+      - "Two tests lock in behavior the mechanical scan flagged as defects: test_ocr_phase_without_render asserts the progress bar reads 1.0 for a single image (D1.1), and test_page_text_without_stream_is_appended exercises the branch D1.2 called dead. Both are recorded as doc/test tensions and routed to porting rather than resolved here."
+      - "There is no auth model at all, and no configuration surface: config.py constants are the single source, with no file, no env vars, and no persistence of the user's URL/model/DPI."
+      - "SYSTEM_PROMPT is the highest-leverage setting in the system and the least reachable - hardcoded, asserted verbatim by a test, and undocumented as to provenance."
+    outputs_present:
+      - findings/contracts/behavioral-contracts.md
+    open_questions:
+      -
+        id: q-gui-tests-ever-run
+        kind: needs-maintainer-decision
+        description: "All five GUI test files skip themselves when no display is available, and the repository has no CI. Whether these ~470 lines of contracts have ever been executed, and whether they currently pass, is unknown. If they have not run, the contracts they pin are aspirational rather than verified."
+        deferred_reason: "Requires a maintainer to state the intended verification environment, or a runtime probe with a display attached. No pipeline phase can settle it by reading source."
+      -
+        id: q-prompt-provenance
+        kind: needs-maintainer-decision
+        description: "SYSTEM_PROMPT determines output quality more than any other setting and is asserted verbatim by a test, but nothing records how it was arrived at, what alternatives were rejected, or which models it was tuned against. A port cannot know which parts are load-bearing."
+        deferred_reason: "A maintainer and project-history question, not derivable from source. Relevant to porting but not resolvable by any phase's rubric."
+    carry_forward:
+      -
+        id: contracts-CF1
+        kind: defer-to-phase
+        description: "The all-or-nothing transaction is a tested contract (test_late_page_failure_leaves_no_new_output, test_late_page_failure_preserves_existing_output), not an oversight. Any partial-save or resume design deliberately breaks two passing tests, and that tradeoff needs an explicit decision with the defect synthesis in view."
+        deferred_reason: "Reconciling a tested contract against a high-severity defect finding is a synthesis judgment - exactly what porting's Defect Synthesis section exists for. Deciding it here would pre-empt that section without the semantic scan's input."
+        target_phase: porting
+      -
+        id: contracts-CF2
+        kind: defer-to-phase
+        description: "The progress formulas are asserted by test_ocr_phase_without_render (a single image sits at 100% for the whole job), so D1.1 is a locked-in design choice rather than an accidental bug. A port must decide whether to preserve the tested formula or fix the UX and rewrite the test."
+        deferred_reason: "Same class as contracts-CF1: a defect-versus-contract tradeoff that belongs in the porting synthesis, expressed in the fix-before-porting / port-differently / leave-behind vocabulary."
+        target_phase: porting
   protocols:
-    status: pending
-    owner_notes: []
-    outputs_present: []
-    open_questions: []
-    carry_forward: []
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/protocols/protocols-and-state.md"
+      - "Validation: PASS"
+      - "Six protocol boundaries: the worker-to-UI event queue (the spine), the service callback protocol, Ollama HTTP, output persistence, the render directory, and OS integration. Configuration is explicitly NOT a boundary - config.py is imported directly with no serialization, precedence, or reload path."
+      - "The most useful protocol property found: observational events (log, progress, page_image, stream_chunk, page_text) drive UI only. The saved Markdown is built from recognize_images' return value, not from the event stream, so losing every observational event still produces a byte-identical file. Only four events (models_loaded, refresh_error, ocr_success, ocr_error) are state-bearing, and losing one strands the state machine permanently."
+      - "SM1 has three properties that matter more than its transitions: no cancellation transition exists, there is no error state (failure returns straight to IDLE with no memory of the outcome, which is why nothing can offer retry), and exactly four events can leave a busy state."
+      - "No event carries a job identifier, sequence number, or timestamp. The protocol is correct only because at most one operation runs at a time."
+      - "Pages are handed to Ollama as filesystem path strings, not bytes. This is the single most consequential unknown for a cross-language port and could not be resolved without inspecting third-party client internals."
+    outputs_present:
+      - findings/protocols/protocols-and-state.md
+    open_questions:
+      -
+        id: q-ollama-image-encoding
+        kind: needs-runtime-test
+        description: "Pages are handed to the provider as filesystem path strings ('images': [str(path)]). Whether the ollama client base64-encodes the file into the JSON body, streams it as multipart, or passes the path for server-side resolution is not determinable from the app's source - and it decides whether a remote server ever sees the path or only the bytes."
+        deferred_reason: "Requires capturing traffic against a live Ollama server or reading third-party client internals, both outside this pipeline's scope. No later phase's rubric covers third-party wire inspection."
+      -
+        id: q-queue-depth-under-load
+        kind: needs-runtime-test
+        description: "With no maxsize and a 50ms drain interval, the steady-state event-queue depth against a fast local model is unknown. It determines whether D2.5's unbounded growth is a theoretical or a practical concern, and therefore how urgently a port needs bounded channels."
+        deferred_reason: "Needs measurement against a real GPU-backed model on a multi-page document; no amount of static reading yields a number."
+    carry_forward:
+      -
+        id: protocols-CF1
+        kind: defer-to-phase
+        description: "The event schema carries no job identifier, sequence number, or timestamp, and SM1 has no cancellation transition and no error state. Any port that adds cancellation, concurrent page recognition, or resumability must extend the event schema and the state machine together - these are one design decision, not two."
+        deferred_reason: "Choosing the extended protocol shape is a synthesis judgment that depends on the defect synthesis (D2.1, D2.3) and the tested-contract tradeoffs already routed as contracts-CF1. Deciding it here would fix a design before the port's goals are known."
+        target_phase: porting
+      -
+        id: protocols-CF2
+        kind: defer-to-phase
+        description: "The defensive getattr reads at ocr_service.py:91 and 210-211 convert an upstream provider schema change into a silent total failure misreported as 'Ollama returned no text', which the README in turn attributes to a non-vision model. Provider-contract drift with a misleading diagnostic."
+        deferred_reason: "Spec-versus-implementation drift and provider-contract violations are pass 5's rubric in the semantic scan, which is the phase equipped to judge severity against the recovered contracts."
+        target_phase: defect-scan-semantic
   defect-scan-semantic:
     status: pending
     owner_notes: []
@@ -120,5 +170,5 @@ phases:
     open_questions: []
     carry_forward: []
 next_actions:
-  - "Begin contracts phase by producing findings/contracts/behavioral-contracts.md"
+  - "Begin defect-scan-semantic phase by producing findings/defect-scan-semantic/semantic-defects.md"
 post_pipeline: []
