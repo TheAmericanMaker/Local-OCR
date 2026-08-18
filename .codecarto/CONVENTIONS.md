@@ -173,7 +173,30 @@ your own layer, C05 says read the layer you delegate to.
 
 ---
 
-## C06. <Title>
+## C06. State a contract break in place, with the test list
+
+When a spec deliberately diverges from behavior the source asserts in a **passing** test, say so **at the
+rule itself**: name the invariant preserved, the one dropped, and each test that must change. Never let
+a break read as though the source simply had no opinion.
+
+**Why:** R1 in the reimplementation spec replaces Local-OCR's all-or-nothing discard with first-class
+partial success — behavior two *passing* service-suite tests assert. Stating the split in place made the
+cost concrete and small: `test_late_page_failure_preserves_existing_output` is satisfied unchanged by
+R1.4, so **exactly one** test needs rewording. Had the rule simply specified better behavior, a reader
+would have had no way to tell a deliberate break from an unnoticed one — and no way to price it.
+
+**How to apply:** applies to `porting` when settling a defect-versus-contract tradeoff and to
+`reimplementation-spec` when writing the resulting rule. Trigger: any rule contradicting something the
+audit found to be *tested and passing*. A rule contradicting an `asserted-not-verified` test still needs
+the note, but should say the test's evidentiary weight is low (C02/C04).
+
+**Current implementers:** the porting phase (Decision 1); the spec phase (R1, and its note under R1.5).
+
+**Source:** `closeouts/2026-08-18-reimplementation-spec.md`.
+
+---
+
+## C07. <Title>
 
 
 <!-- Lead with the rule itself. -->
@@ -194,4 +217,4 @@ your own layer, C05 says read the layer you delegate to.
 
 Staged by completion from each phase handoff's `proposed_conventions`. The orchestrator promotes an entry into a numbered convention above (or removes it with a note) at the phase boundary — see GUIDE.md §Roles.
 
-*(none pending — C01/C02 at architecture; C03 at defect-scan-mechanical; C04 at contracts; C05 at protocols.)*
+*(none pending — C01/C02 at architecture; C03 at defect-scan-mechanical; C04 at contracts; C05 at protocols; C06 at reimplementation-spec, the terminal boundary.)*

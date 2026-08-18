@@ -43,3 +43,4 @@ grep -E '^- [0-9]{4}-[0-9]{2}-[0-9]{2}' .codecarto/THREAD_LOG.md | sort | uniq -
 - 2026-08-18 — protocols — Six boundaries and a nine-event catalog formalized; image wire encoding resolved to base64-in-JSON; 14 hazards recorded. — [closeout](closeouts/2026-08-18-protocols.md)
 - 2026-08-18 — defect-scan-semantic — 18 semantic defects (1 high, 8 medium, 9 low); all seven routed items resolved, one refuted, one downgraded on evidence. — [closeout](closeouts/2026-08-18-defect-scan-semantic.md)
 - 2026-08-18 — porting — Bundle synthesized as the compression boundary; 41 defects dispositioned; four tradeoff decisions settled. — [closeout](closeouts/2026-08-18-porting.md)
+- 2026-08-18 — reimplementation-spec — Language-agnostic spec: 9 modules, 44 MUST rules, 35 acceptance scenarios, kernel-first sequence; all 41 defects dispositioned. — [closeout](closeouts/2026-08-18-reimplementation-spec.md)

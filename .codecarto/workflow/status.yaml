@@ -1,7 +1,7 @@
 project_name: Local-OCR
 pipeline: workflow/pipeline-full-with-deep-audit.yaml
-current_phase: reimplementation-spec
-last_updated: "2026-08-18T03:21:05.885Z"
+current_phase: complete
+last_updated: "2026-08-18T03:27:15.032Z"
 schema_version: 1
 phases:
   architecture:
@@ -38,12 +38,7 @@ phases:
       - "Error handling is otherwise deliberate and well-commented - the finally-reschedule in drain_ui_events, the non-fatal thumbnail failure, and the single-terminal-event sequencing are all correct and intentional. The gaps are at the edges of good patterns, not a general absence of care."
     outputs_present:
       - findings/defect-scan-mechanical/mechanical-defects.md
-    open_questions:
-      -
-        id: q-ctk-image-clear
-        kind: needs-runtime-test
-        description: "_clear_preview (app.py:329) and _clear_review (app.py:341) clear a displayed image via CTkLabel.configure(image=None). Whether customtkinter removes the underlying Tk image or retains the previous one is version-dependent, and requirements.txt pins a range (>=6.0.0,<7) rather than an exact version. If it retains, a previous run's last page stays visible behind a cleared panel."
-        deferred_reason: "Requires a GUI session against a specific customtkinter build. This host has no tkinter, so unlike D2.3's mechanism this one could not be isolated and executed - convention C01 was applied and does not reach here."
+    open_questions: []
     carry_forward: []
   contracts:
     status: complete
@@ -59,17 +54,7 @@ phases:
       - "SYSTEM_PROMPT is the highest-leverage setting in the system and the least reachable - hardcoded, asserted verbatim by a passing test, and undocumented as to provenance."
     outputs_present:
       - findings/contracts/behavioral-contracts.md
-    open_questions:
-      -
-        id: q-gui-tests-ever-run
-        kind: needs-maintainer-decision
-        description: "REFRAMED on measurement. It is now established that the five GUI suites error at collection on a host without tkinter (D1.6), so they cannot have passed in such an environment. What remains unknown is whether they pass on a developer machine WITH tkinter and a display - and therefore whether the ~470 lines of UI contracts have ever been demonstrated anywhere."
-        deferred_reason: "Requires either a maintainer statement about the intended verification environment or a host with tkinter and a display. Neither is reachable here, and no phase's rubric provides one."
-      -
-        id: q-prompt-provenance
-        kind: needs-maintainer-decision
-        description: "SYSTEM_PROMPT drives output quality more than any other setting and is asserted verbatim by a passing test, but nothing records how it was derived, what alternatives were rejected, or which models it was tuned against. A port cannot tell which clauses are load-bearing."
-        deferred_reason: "Project history rather than source. Unresolvable by any phase's rubric."
+    open_questions: []
     carry_forward: []
   protocols:
     status: complete
@@ -85,12 +70,7 @@ phases:
       - "Per C02/C04, SM2/SM3/SM4 are marked asserted-not-verified because they are pinned only by the GUI suites, which error at collection here. This is the weakest-evidenced part of the protocol description and is stated rather than averaged away."
     outputs_present:
       - findings/protocols/protocols-and-state.md
-    open_questions:
-      -
-        id: q-queue-depth-under-load
-        kind: needs-runtime-test
-        description: "With no maxsize and a 50ms drain interval, the steady-state event-queue depth against a fast local model is unknown. It determines whether D2.5's unbounded growth is a theoretical or a practical concern, and therefore how urgently a port needs bounded channels."
-        deferred_reason: "Needs measurement against a real GPU-backed model on a multi-page document. No static reading yields a number, and no model is available in this environment - convention C01 was applied and does not reach here."
+    open_questions: []
     carry_forward: []
   defect-scan-semantic:
     status: complete
@@ -124,33 +104,59 @@ phases:
     outputs_present:
       - findings/porting/reverse-engineering-bundle.md
     open_questions: []
-    carry_forward:
-      -
-        id: porting-CF1
-        kind: defer-to-phase
-        description: "The 4 high and 16 medium defects each carry a required design consequence, and the high ones a sketched acceptance test, in the Defect Synthesis section. Each must become a normative rule plus a concrete black-box scenario in the spec, not a summary."
-        deferred_reason: "The deep-audit guidance is explicit that a hazard with no test in the spec gets reintroduced by whoever implements it. Turning design consequences into normative rules with scenarios is the spec phase's rubric, not synthesis."
-        target_phase: reimplementation-spec
-      -
-        id: porting-CF2
-        kind: defer-to-phase
-        description: "Decisions 1-4 are made but not specified: break the all-or-nothing contract while preserving the no-corrupt-output half; fix the progress formula and rewrite its tests; extend the event schema and state machine together for cancellation/retry/concurrency; and carry acceptance rows 41 and 42 as MUST rules. Each needs exact normative wording, the enumerated test changes, and a build-order placement."
-        deferred_reason: "The decisions belong to synthesis; their precise wording, the list of tests they change, and their sequencing belong to the spec."
-        target_phase: reimplementation-spec
-      -
-        id: porting-CF3
-        kind: defer-to-phase
-        description: "This bundle omits the 42 black-box acceptance scenarios and the full nine-event payload schema and 22-transition state machine, pointing at them via the Source Index instead. The spec must fold the acceptance list into its own acceptance section, carrying the verification-status column forward per convention C04, and pin the event contract concretely."
-        deferred_reason: "Named in the Source Index as the two deep-read triggers. Reproducing them in the bundle would defeat the compression boundary; the spec is where they become normative - and dropping the status column would hand the implementer a harness whose weak rows look like its strong ones."
-        target_phase: reimplementation-spec
+    carry_forward: []
   reimplementation-spec:
-    status: pending
-    owner_notes: []
-    outputs_present: []
-    open_questions: []
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/reimplementation-spec/reimplementation-spec.md"
+      - "Validation: PASS"
+      - "Language-agnostic spec, tagged selection: language-agnostic in the front matter. The Strategic Alignment Hook was not answered interactively and the originating request named no target stack, so per GUIDE.md the default template was used and the choices the hook would have elicited are recorded as q-target-stack and q-scope-tier-commitment rather than guessed."
+      - "Nine concept modules (M1-M9) with the kernel deliberately buildable without any adapter: M1 orchestrator, M5 state machine, and M9 settings must be testable with no page source, recognizer, writer, or shell present. If they are not, the port boundary is wrong."
+      - "44 numbered MUST rules across R1-R10, each traced to a defect disposition or a verified contract and cross-referenced to the acceptance scenario that proves it. All 41 defects are dispositioned - none summarized and dropped."
+      - "The spec makes exactly ONE deliberate contract break, and says so in place: R1 replaces the original's tested all-or-nothing discard with partial success, while R1.4 preserves the half worth keeping (never corrupt or destroy the canonical artifact). Only one existing test needs rewording."
+      - "Nine scenarios encode behavior the original demonstrably fails or that only execution revealed: A2, A5, A11, A12, A13, A14, A21, A28, A29, plus A31's second half. These are the highest-value rows because a faithful port reproduces every one of them."
+      - "Carried the acceptance list's verification-status tiering forward as an Origin column (convention C04). 14 rows are marked A - inherited from GUI tests that error at collection in the original - so they specify intent rather than demonstrated behavior. Dropping that column would have handed an implementer a harness whose weak rows look like its strong ones."
+      - "Only three targeted deep reads were needed beyond the bundle, all against triggers the bundle named explicitly. The compression boundary held."
+    outputs_present:
+      - findings/reimplementation-spec/reimplementation-spec.md
+    open_questions:
+      -
+        id: q-target-stack
+        kind: needs-maintainer-decision
+        description: "No target language, runtime, UI toolkit, project identity, or module naming was committed, so the Strategic Alignment Hook's inputs are absent and this spec is language-agnostic by default. Concurrency, UI, and packaging rules are stated as requirements rather than concrete techniques."
+        deferred_reason: "A product decision the orchestrator owns. Once committed, re-run this phase against templates/reimplementation-spec-opinionated.md - recorded as post-pipeline item pp-opinionated-spec-rerun and carry-forward spec-CF2."
+      -
+        id: q-scope-tier-commitment
+        kind: needs-maintainer-decision
+        description: "Which scope tier is the actual target was never stated. The three tiers are defined, but whether the first release is the minimum viable port or major-workflow parity changes sequencing after Phase 8."
+        deferred_reason: "Requires the same product decision as q-target-stack."
+      -
+        id: q-gui-tests-ever-run
+        kind: needs-maintainer-decision
+        description: "Established that the original's five GUI suites error at collection without the toolkit, so they cannot have passed headless. Whether they pass on a machine with a display - and therefore whether ~470 lines of contracts were ever demonstrated - is unknown, and it sets how far the 14 A-origin acceptance scenarios can be trusted."
+        deferred_reason: "Needs a maintainer statement or a host with a display. R10 and scenario A29 make the port immune regardless of the answer."
+      -
+        id: q-prompt-provenance
+        kind: needs-maintainer-decision
+        description: "The system prompt drives output quality more than any other setting and is specified as preserve-verbatim, but nothing records how it was derived or against which models it was tuned. A port cannot tell which clauses are load-bearing, so it cannot safely simplify it."
+        deferred_reason: "Project history, not source. R8.2's prompt versioning is the mitigation: changes become attributable even while provenance stays unknown."
+      -
+        id: q-queue-depth-under-load
+        kind: needs-runtime-test
+        description: "Real steady-state channel occupancy and delta rates against a production-grade model were never measured, so R2's caps and bounds are specified as requirements without numeric thresholds."
+        deferred_reason: "Needs a GPU-backed model on a multi-page document, which no pipeline phase performs. Routed to a spike (spec-CF1) to set the constants."
+      -
+        id: q-ctk-image-clear
+        kind: needs-runtime-test
+        description: "In the original, clearing a displayed image relies on toolkit-version-dependent null-image behavior, and whether it actually clears was never verified."
+        deferred_reason: "Toolkit-specific and largely moot once a stack is chosen: M8 requires explicit clearing rather than a null assignment, so the port does not inherit the ambiguity."
     carry_forward: []
 next_actions:
-  - "Begin reimplementation-spec phase by producing findings/reimplementation-spec/reimplementation-spec.md"
+  - "All phases complete. Review findings; post-pipeline skills: codecarto_list_skills / codecarto_skill."
+  - "7 open question(s) and 9 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/<slug>.yaml from templates/amendment.yaml)."
+  - "Publish the finished spec to a library: codecarto_publish (create one with codecarto_library_init; see the library guide topic)."
+  - "Dashboard: .codecarto/dashboard.html (refreshed on completion and amendment; codecarto_dashboard re-renders on demand). Usage totals: codecarto_usage."
 post_pipeline:
   -
     id: pp-run-gui-suites
@@ -176,4 +182,24 @@ post_pipeline:
     id: pp-defect-fix-tracker
     description: "If the defects are fixed in the existing Python codebase rather than in a port, instantiate templates/defect-fix-tracker.md with the 41 IDs from the two scan reports to log each fix, deferral, or acceptance."
     source_phase: porting
+    status: pending
+  -
+    id: spec-CF1
+    description: "SPIKE - Establish R2's numeric thresholds (per-page and per-document output caps, channel bound, per-cycle observer budget, maximum input page count and byte size) by measuring a real model on real documents. The rules are normative; only the constants are open. Requires executing against a production-grade model, which no pipeline phase performs; guessing the constants would make R2 either toothless or wrong."
+    source_phase: reimplementation-spec
+    status: pending
+  -
+    id: spec-CF2
+    description: "AMENDMENT - Re-run reimplementation-spec against templates/reimplementation-spec-opinionated.md once a target stack, project identity, module naming, and scope tier are committed, replacing requirement-shaped hazard mitigations with concrete techniques. Blocked on q-target-stack and q-scope-tier-commitment; producing a stack-specific spec now would invent commitments the orchestrator has not made."
+    source_phase: reimplementation-spec
+    status: pending
+  -
+    id: spec-CF3
+    description: "SPIKE - Prototype the provider adapter against a live server to confirm the complete request envelope beyond image encoding (headers, sibling fields, error-response shapes) so R4's typed error classification maps onto real failures rather than inferred ones. Image encoding is established but no traffic was captured; cheap insurance before Phase 6 substitutes real adapters."
+    source_phase: reimplementation-spec
+    status: pending
+  -
+    id: pp-opinionated-spec-rerun
+    description: "Orchestrator trigger for spec-CF2: once the stack decision exists, run reimplementation-spec interactively so the Strategic Alignment Hook is actually answered rather than defaulted."
+    source_phase: reimplementation-spec
     status: pending
