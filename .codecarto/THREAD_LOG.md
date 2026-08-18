@@ -41,3 +41,5 @@ grep -E '^- [0-9]{4}-[0-9]{2}-[0-9]{2}' .codecarto/THREAD_LOG.md | sort | uniq -
 - 2026-08-16 — defect-scan-mechanical — 21 mechanical defects found (3 high, 7 medium, 11 low); all-or-nothing pipeline design is the dominant root cause. — [closeout](closeouts/2026-08-16-defect-scan-mechanical.md)
 - 2026-08-16 — contracts — 13 feature contracts and 40 acceptance scenarios recovered from tests; all-or-nothing behavior confirmed as a tested contract. — [closeout](closeouts/2026-08-16-contracts.md)
 - 2026-08-16 — protocols — Six boundaries and a nine-event catalog formalized; four state machines tabulated; 13 compatibility hazards recorded. — [closeout](closeouts/2026-08-16-protocols.md)
+- 2026-08-16 — defect-scan-semantic — 18 semantic defects (2 high, 7 medium, 9 low); all six routed items resolved, one refuted, one escalated. — [closeout](closeouts/2026-08-16-defect-scan-semantic.md)
+- 2026-08-16 — porting — Bundle synthesized as the compression boundary; 39 defects dispositioned; three tradeoff decisions settled. — [closeout](closeouts/2026-08-16-porting.md)
