@@ -9,23 +9,15 @@ of the change would look like.
 
 ---
 
-## B1. Spike template + first-class spike concept
+## B1. Spike template + first-class spike concept — SHIPPED in smallest viable form (v0.15.0, issue #101)
 
-**Raised by:** `Run three Thaumaturge implementation spikes.txt`, `Apply 20 spec deltas to Thaumaturge.txt`, `Agent on protocols phase - protocols.txt` (3 agents)
-
-**Why deferred:** A spike template would land cleanly, but "first-class spike concept" implies workflow machinery (a `spikes/` directory convention, a validation rule for spike outputs, status.yaml fields for spike tracking). The 2026-05-02 pass is already changing the closeouts pattern, the open_questions schema, and the orchestrator-maintained artifacts list. Adding spike machinery on top risks too much surface change in one revision.
-
-**Smallest viable form:** `templates/spike-report.md` skeleton with sections for Goal, Method, Measurements, Findings, Recommended Deltas. No workflow machinery; spikes stay a per-project convention initially. Status.yaml integration deferred until a project demonstrates the need.
+Landed exactly as scoped: `templates/spike-report.md` (Goal / Method / Measurements / Findings / Recommended Deltas) with the `scratch/spikes/<spike-id>/<scenario>.md` convention documented in GUIDE.md and the spec-delta-application skill. No workflow machinery; spikes stay registered as `post_pipeline` entries (`kind: spike`), their findings flow to the spec through spec-delta-application and to `status.yaml` through `codecarto_amend`. Status.yaml spike tracking remains deferred until a project demonstrates the need.
 
 ---
 
-## B2. Amendments mechanic (`findings/amendments/` directory)
+## B2. Amendments mechanic — SHIPPED (v0.15.0, issue #99)
 
-**Raised by:** `Run three Thaumaturge implementation spikes.txt`, `Agent on protocols phase - protocols.txt` (2 agents — under threshold but persistent)
-
-**Why deferred:** "Phase outputs can't correct prior phases" is a real gap, but `carry_forward` (introduced in this pass) already covers the most common case (forward-routing a deferred item). True back-amendment (a later phase says "the architecture map is wrong about X") needs more design — should it edit the prior output? Append a "superseded by" marker? Live in a parallel directory? The shape isn't obvious enough to land safely.
-
-**Smallest viable form:** A pre-reimpl-spec "reconciliation" pass that surfaces contradictions across primary outputs. Less ambitious than a full amendments directory; uses existing artifacts.
+Landed as `codecarto_amend` over `scratch/amendments/<slug>.yaml` (see `templates/amendment.yaml`): post-pipeline open-question closures and post_pipeline backlog retirement, applied to `workflow/status.yaml` under the completion lock with an amendment closeout and THREAD_LOG entry. The narrower back-amendment question ("a later phase says a prior output is wrong") remains open — a real run handled it with a correction section in the later report plus a delta-application pass, which worked; promote that pattern only if it recurs.
 
 ---
 
