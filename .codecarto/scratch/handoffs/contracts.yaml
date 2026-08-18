@@ -1,0 +1,123 @@
+schema_version: 1
+phase_id: contracts
+owner_notes:
+  - "13 feature contracts across three surfaces and a 42-scenario black-box acceptance list, recovered largely from the ~1,540 lines of tests. The tests, not the README, are the specification."
+  - "The decisive framing this run is TWO-TIER EVIDENCE, per convention C02. The service suite (1,069 lines) was executed and passes 72/1-skipped, so contracts it pins are observed fact. The five GUI suites (~470 lines) error at collection without tkinter (D1.6), so every contract resting only on them is marked asserted-not-verified. 14 of 42 acceptance rows are in that weaker tier, all UI-side."
+  - "The most consequential contract is VERIFIED: the OCR run is an all-or-nothing transaction. test_late_page_failure_leaves_no_new_output and test_late_page_failure_preserves_existing_output are both service-suite tests and both pass, so a port adding partial saves breaks passing tests rather than fixing an oversight."
+  - "Two acceptance rows are new this run and are the only two the current implementation demonstrably fails: row 41 (quitting mid-run must not leak the render directory - proven failing by probe) and row 42 (a headless test run must not produce collection errors - measured failing). Both came from execution, not reading."
+  - "There is no auth model at all, and no configuration surface: config.py constants are the single source, with no file, no env vars, and no persistence of URL/model/DPI."
+  - "SYSTEM_PROMPT is the highest-leverage setting in the system and the least reachable - hardcoded, asserted verbatim by a passing test, and undocumented as to provenance."
+open_questions:
+  - id: q-gui-tests-ever-run
+    kind: needs-maintainer-decision
+    description: "REFRAMED on measurement. It is now established that the five GUI suites error at collection on a host without tkinter (D1.6), so they cannot have passed in such an environment. What remains unknown is whether they pass on a developer machine WITH tkinter and a display - and therefore whether the ~470 lines of UI contracts have ever been demonstrated anywhere."
+    deferred_reason: "Requires either a maintainer statement about the intended verification environment or a host with tkinter and a display. Neither is reachable here, and no phase's rubric provides one."
+  - id: q-prompt-provenance
+    kind: needs-maintainer-decision
+    description: "SYSTEM_PROMPT drives output quality more than any other setting and is asserted verbatim by a passing test, but nothing records how it was derived, what alternatives were rejected, or which models it was tuned against. A port cannot tell which clauses are load-bearing."
+    deferred_reason: "Project history rather than source. Unresolvable by any phase's rubric."
+carry_forward:
+  - id: contracts-CF1
+    kind: defer-to-phase
+    target_phase: porting
+    description: "The all-or-nothing transaction is a verified, passing contract (test_late_page_failure_leaves_no_new_output and test_late_page_failure_preserves_existing_output, both service-suite), not an oversight. Any partial-save or resume design deliberately breaks two passing tests, and that tradeoff needs an explicit decision with the defect synthesis in view."
+    deferred_reason: "Reconciling a passing contract against a high-severity defect is a synthesis judgment - what porting's Defect Synthesis section exists for. Deciding it here would pre-empt that section without the semantic scan's input."
+  - id: contracts-CF2
+    kind: defer-to-phase
+    target_phase: porting
+    description: "The progress formulas are asserted by test_ocr_phase_without_render, so D1.1 is a locked-in design choice - but that test is GUI-only and unverified, so the contract is specified rather than demonstrated. A port must decide whether to preserve the tested formula or fix the UX, knowing the test may never have run."
+    deferred_reason: "Same class as contracts-CF1, with the added wrinkle that the contract's evidentiary weight is low. The porting synthesis is where defect-versus-contract tradeoffs get decided."
+  - id: contracts-CF3
+    kind: defer-to-phase
+    target_phase: protocols
+    description: "Contract fields reference event kinds and payload keys informally (page_image precedes the send log, exactly one terminal event, per-page ordering). The formal event catalog, payload schemas, and the OperationState transition table remain unspecified."
+    deferred_reason: "Wire shapes and state machines are the protocols phase's rubric; this reinforces arch-CF3 from the contracts side rather than duplicating the work."
+  - id: contracts-CF4
+    kind: defer-to-phase
+    target_phase: porting
+    description: "Acceptance rows 41 and 42 are the only two the current implementation demonstrably fails: the mid-run temp-dir leak (proven by probe, D2.3) and the headless test run erroring rather than skipping (measured, D1.6). Both must survive into the spec as normative rules, not as observations."
+    deferred_reason: "The spec phase converts defects into normative rules plus scenarios; routing through porting keeps them attached to their dispositions rather than floating free."
+carry_forward_closures:
+  - arch-CF4
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - id: contracts-D1
+    description: "Introduced an explicit asserted-not-verified evidence tier rather than citing GUI tests as observed fact. Convention C02 requires distinguishing a test that exists from one that runs, and D1.6 measured that the GUI suites error at collection. Averaging the two tiers into one would have overstated the specification's strength by ~470 lines."
+  - id: contracts-D2
+    description: "Did not write the secondary output findings/config-model/config-model.md. The configuration model is a single flat set of module constants with no file, no env vars, and no precedence chain, so there is nothing to trace across a boundary; the Configuration Model section carries it in full. Accounted for in Coverage and limits per the v0.16.0 orchestrator duty."
+  - id: contracts-D3
+    description: "Added a verification-status column to the acceptance list rather than a flat scenario list. It makes the two-tier evidence actionable for the port: 28 rows have a currently-passing equivalent, 14 do not, and 2 encode behavior the implementation fails."
+  - id: contracts-D4
+    description: "Treated the outbound Ollama client as a surface in its own right rather than folding it into the GUI contracts, because its message shapes and timeout semantics are asserted field-for-field by passing tests and constitute a hard external contract a port must reproduce."
+proposed_conventions:
+  - name: Record verification status alongside every acceptance scenario
+    rule: "An acceptance list must say, per scenario, whether an equivalent assertion currently passes, exists but is unverified, or does not exist. A flat list of scenarios silently averages strong and weak evidence and lets a reader assume uniform coverage."
+    evidence: "Local-OCR's 42 scenarios split 28 verified / 14 asserted-not-verified / 2 known-failing. Without the column, the ~470 lines of never-executed GUI contracts would read exactly like the 1,069 lines of passing service contracts."
+closeout_summary: "13 contracts and 42 acceptance scenarios recovered; evidence split into verified and asserted-not-verified tiers."
+closeout_content: |-
+  # Closeout — contracts
+
+  ## Summary
+
+  - Recovered 13 feature contracts across three surfaces (Desktop GUI, the
+    `_extracted.md` storage format, the outbound Ollama client), each with all
+    seven contract fields plus an owning module.
+  - Produced a **42-scenario** black-box acceptance list runnable against any
+    reimplementation, each row carrying its current verification status.
+  - Closed `arch-CF4` by mining the ~1,540 lines of tests, which is where nearly
+    all the precision came from.
+
+  ## The framing that changed this run: two-tier evidence
+
+  Convention **C02** ("a test's existence is not evidence that it runs") forced
+  a split the previous pass had averaged away:
+
+  - **`tests/test_ocr_service.py`** (1,069 lines) — **executed, 72 passed, 1
+    skipped.** Contracts it pins are `observed fact`.
+  - **The five GUI suites** (~470 lines) — **error at collection** without
+    `tkinter` (D1.6). Every contract resting only on them is
+    **`asserted-not-verified`**: not wrong, but undemonstrated.
+
+  14 of the 42 acceptance rows fall in the weaker tier, all UI-side. The GUI is
+  simultaneously the only interactive surface and the least verified half of the
+  specification — which is worth knowing before trusting it as a parity harness.
+
+  ## The decisive contract, and it is verified
+
+  The OCR run is an **all-or-nothing transaction**, and both tests asserting it
+  are service-suite tests that **pass**: a failure on page N discards pages
+  1..N−1 and leaves any prior output untouched. The mechanical scan rated this
+  `high` (D2.1). Both readings are correct, and the distinction matters: adding
+  partial saves is **changing a passing, deliberate contract**, not fixing an
+  oversight. Routed to `porting` as `contracts-CF1`.
+
+  ## Two scenarios the implementation fails
+
+  Rows 41 and 42 are new, and both came from execution rather than reading:
+
+  - **41** — quitting mid-run must not leak the render directory. Proven
+    failing by the daemon-thread probe (D2.3).
+  - **42** — a headless test run must report pass/skip, never collection
+    errors. Measured failing (D1.6).
+
+  Routed as `contracts-CF4` so they reach the spec as normative rules.
+
+  ## Doc/test conflicts
+
+  Five recorded. Two are documentation gaps already routed under `mech-CF4`.
+  Two are tests locking in behavior the scan flagged (D1.1, D1.2) — both
+  GUI-only, so they specify without demonstrating. The fifth is new: **the GUI
+  suites' own skip docstring is false**, which is what motivated the evidence
+  tiering.
+
+  ## Routing
+
+  - Closed `arch-CF4`.
+  - `contracts-CF1`, `contracts-CF2`, `contracts-CF4` → `porting`.
+  - `contracts-CF3` → `protocols`.
+  - `q-gui-tests-ever-run` **reframed** on measurement (they cannot have passed
+    headless; whether they pass with a display is still unknown);
+    `q-prompt-provenance` opened.
+  - Proposed one convention: *record verification status alongside every
+    acceptance scenario*.

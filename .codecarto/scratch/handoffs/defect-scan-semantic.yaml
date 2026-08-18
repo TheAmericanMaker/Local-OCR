@@ -1,0 +1,111 @@
+schema_version: 1
+phase_id: defect-scan-semantic
+owner_notes:
+  - "18 findings across passes 3/4/5: 0 critical, 1 high, 8 medium, 9 low. Combined with the mechanical scan the full audit is 41 findings: 0 critical, 4 high, 16 medium, 21 low."
+  - "All seven routed carry-forwards resolved, none re-routed. One refuted (mech-CF3) and one downgraded on evidence (protocols-CF2 to medium)."
+  - "The contradiction sweep changed a headline finding rather than being smoothed over. The previous pass rated provider-drift high partly because it was 'reachable today through ordinary dependency resolution'. The protocols phase then measured that the installed client still exposes ChatResponse.message.content and ListResponse.models[].model, contradicting that premise. S5.1 is now medium, with the reasoning stated. Downgrading on evidence beat preserving a headline."
+  - "mech-CF3 refuted: enumerating every operation_state and self.closing access site shows all reads and writes are on the Tk main thread; workers touch nothing but event_queue.put. The lock-free design is correct and a lock would add nothing. The invariant to carry is that all mutable UI state is confined to one thread and the queue is the only shared object - a port must re-establish that explicitly rather than read the absence of locks as the absence of a concurrency contract."
+  - "Two findings were sharpened by the protocols phase's resolution of the wire encoding. S4.3 now states that the complete pixel content of every page travels base64'd over unauthenticated plaintext HTTP - not merely 'a request is made'. S4.5's TOCTOU window is now known to extend to base64 encode time, per page, because the client re-reads the file at request time."
+  - "Two structural themes for porting: absent bounds (no job timeout, output cap, input cap, queue bound, per-drain budget, or temp-space check) and errors that misdirect (S5.1, S5.2, S5.3, D2.10 are one weakness in four places - the app asserts causes it has not established, which is what convention C03 exists to prevent)."
+  - "The real security exposure is untrusted binary parsing (pymupdf.open, Image.open) with no size limit and PyMuPDF uncapped - not the network. Verified clean: no secrets anywhere, and no command-injection path, with all six OS branches covered by passing tests."
+open_questions: []
+carry_forward: []
+carry_forward_closures:
+  - arch-CF5
+  - mech-CF1
+  - mech-CF2
+  - mech-CF3
+  - mech-CF4
+  - mech-CF5
+  - protocols-CF2
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - id: semantic-D1
+    description: "Downgraded S5.1 from high to medium because the contradiction sweep found measured evidence against the premise that justified high. The installed client still exposes the fields the getattr chains read, so the trigger is a future rename rather than a current one. Impact stays total and the diagnostic stays wrong, which keeps it above low, but reporting the measurement honestly outweighed preserving a headline finding."
+  - id: semantic-D2
+    description: "Reported mech-CF3 as a refutation with the full thread-by-thread access table rather than silently dropping it. A routed item that turns out not to be a defect is still an answer, and the confinement invariant it establishes is load-bearing for any port that changes threading model."
+  - id: semantic-D3
+    description: "Rated the two TOCTOU halves of mech-CF1 differently (output medium, input low) rather than giving the pair one severity. The output window defeats a promised data-loss guard across a multi-minute run with no adversary required; the input window crosses no privilege boundary in a single-user desktop app."
+  - id: semantic-D4
+    description: "Did not report dependency CVEs for PyMuPDF or Pillow. Pass 4's own scope note excludes CVE scanning as a tooling concern, so S4.1 reports structural exposure and the absence of version bounds instead of naming vulnerabilities. Note this does not conflict with convention C05, which licenses reading a dependency to establish a contract, not to audit its quality."
+  - id: semantic-D5
+    description: "Kept mechanical findings as cross-references rather than restating them. Several semantic findings compound mechanical ones - S3.2 with D2.5, S3.5 with D6.3, S3.3 with D2.3, S5.2 with D2.10 - and the compounding is the new information."
+closeout_summary: "18 semantic defects (1 high, 8 medium, 9 low); all seven routed items resolved, one refuted, one downgraded on evidence."
+closeout_content: |-
+  # Closeout — defect-scan-semantic
+
+  ## Summary
+
+  - Ran passes 3 (concurrency and resources), 4 (security and trust), and 5
+    (API contract violations) with contracts and protocols in hand. **18
+    findings: 0 critical, 1 high, 8 medium, 9 low.**
+  - Full audit across both scans: **41 findings — 0 critical, 4 high, 16
+    medium, 21 low.**
+  - All seven routed items resolved; none re-routed.
+
+  ## The contradiction sweep changed a finding
+
+  The v0.16.0 loop asks each phase to compare measured facts against earlier
+  summarized claims. That duty paid off here in an uncomfortable direction.
+
+  The previous pass rated provider-schema drift **high**, partly because it was
+  "reachable today through ordinary dependency resolution." The protocols phase
+  then *measured* the installed client and found `ChatResponse.message.content`
+  and `ListResponse.models[].model` still present. The premise was wrong: the
+  newest resolvable client satisfies the chains, so the trigger is a **future**
+  rename.
+
+  S5.1 is therefore **medium**, not high. Impact remains total and the
+  diagnostic remains actively misleading — the README maps that exact error
+  string to "no vision support" — which keeps it above `low`. But a headline
+  severity that rests on a contradicted premise is worth less than an accurate
+  one, and the mild form of the same weakness (H14/D2.10, a local missing-file
+  error reported as an Ollama failure) **is** already live.
+
+  ## The refutation
+
+  `mech-CF3` questioned the lock-free `OperationState` exclusion and whether
+  `self.closing` races. Enumerating every access site and its thread shows
+  **both are main-thread-only** — workers touch nothing but `event_queue.put`.
+  The design is correct as written; a lock would add nothing.
+
+  The invariant worth carrying: *all mutable UI state is confined to a single
+  thread; the queue is the only shared object.* A port must re-establish that
+  confinement explicitly rather than read the absence of locks as the absence
+  of a concurrency contract.
+
+  ## Two findings sharpened by upstream work
+
+  Because the protocols phase resolved the wire encoding, two security findings
+  got more precise rather than merely more confident:
+
+  - **S4.3** — what crosses the wire is the **complete pixel content of every
+    page**, base64'd, over unauthenticated plaintext HTTP. Previously it was
+    unclear whether bytes or a path were sent.
+  - **S4.5** — the TOCTOU window extends to **base64 encode time, per page**,
+    because the client re-reads the file at request time. For a PDF that spans
+    the whole recognition loop, not just the initial open.
+
+  ## Structural themes
+
+  - **Absent bounds.** No job timeout, no output cap, no input cap, no queue
+    bound, no per-drain budget, no free-space check.
+  - **Errors that misdirect.** S5.1, S5.2, S5.3, and D2.10 are one weakness in
+    four places — exactly what convention C03 was promoted to prevent.
+
+  ## Security posture
+
+  The real attack surface is **untrusted binary parsing** (`pymupdf.open`,
+  `Image.open`) with no size limit and PyMuPDF uncapped — not the network.
+  Verified clean: no secrets anywhere, and no command-injection path, with all
+  six OS-integration branches covered by passing tests.
+
+  ## Routing
+
+  Closed all seven: `arch-CF5` (S3.2, S3.5), `mech-CF1` (split S4.2/S4.5),
+  `mech-CF2` (S4.3, sharpened), `mech-CF3` (**refuted**), `mech-CF4` (S5.2 —
+  now four causes, not three — and S5.3), `mech-CF5` and `protocols-CF2` (S5.1,
+  **downgraded**). No new carry-forwards and no new open questions: the porting
+  phase already carries the tradeoffs that matter (`contracts-CF1`,
+  `contracts-CF2`, `contracts-CF4`, `protocols-CF1`).

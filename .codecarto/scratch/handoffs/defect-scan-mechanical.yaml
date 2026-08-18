@@ -1,0 +1,131 @@
+schema_version: 1
+phase_id: defect-scan-mechanical
+owner_notes:
+  - "23 findings across passes 1/2/6: 0 critical, 3 high, 8 medium, 12 low. Nothing produces silently wrong OCR output or corrupts user data in normal operation."
+  - "All three high findings share one root cause: the OCR pipeline is a single all-or-nothing transaction over N independent network calls. One bad page (D2.1), one blank page (D2.2), or one mid-job quit (D2.3) discards everything already recognized. This is the most important thing for porting to redesign."
+  - "D2.3 is now observed fact, not inference. Per convention C01 the mechanism was isolated and executed: a daemon thread with mkdtemp + finally:rmtree, main thread returning after 0.4s. On Python 3.11 the finally did NOT run and the temp directory SURVIVED. q-shutdown-tempdir is closed."
+  - "D1.6 is new and only findable by execution: all five GUI suites document that they skip on a headless host, but the skip guard is in setUp while 'import app' is at module scope, so without tkinter they error at collection. unittest discover reports 5 errors while the service suite passes 72. Those ~470 lines of UI contracts have very likely never run."
+  - "D6.2 is tempered by measurement rather than confirmed: the suite passes on PyMuPDF 1.28.2 and Pillow 11.3.0, far above the declared floor, and the installed ollama client still exposes the shapes the getattr chains read. The uncapped-dependency exposure is real but currently unrealized."
+  - "Error handling is otherwise deliberate and well-commented - the finally-reschedule in drain_ui_events, the non-fatal thumbnail failure, and the single-terminal-event sequencing are all correct and intentional. The gaps are at the edges of good patterns, not a general absence of care."
+open_questions:
+  - id: q-ctk-image-clear
+    kind: needs-runtime-test
+    description: "_clear_preview (app.py:329) and _clear_review (app.py:341) clear a displayed image via CTkLabel.configure(image=None). Whether customtkinter removes the underlying Tk image or retains the previous one is version-dependent, and requirements.txt pins a range (>=6.0.0,<7) rather than an exact version. If it retains, a previous run's last page stays visible behind a cleared panel."
+    deferred_reason: "Requires a GUI session against a specific customtkinter build. This host has no tkinter, so unlike D2.3's mechanism this one could not be isolated and executed - convention C01 was applied and does not reach here."
+carry_forward:
+  - id: mech-CF1
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "TOCTOU windows: validate_input_path runs at app.py:606 and the overwrite check at app.py:633, both well before the worker reads the input (ocr_service.py:331) or writes the output (ocr_service.py:362). The file can be replaced, deleted, or created in between."
+    deferred_reason: "Time-of-check/time-of-use is a trust-boundary and race concern - pass 3/4 in defect-scan-semantic - not a local logic defect visible to the mechanical passes."
+  - id: mech-CF2
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "Transport and trust: normalize_ollama_url accepts any http:// host (ocr_service.py:55), the default is plaintext, Ollama has no authentication, and full document page images are transmitted to whatever host is entered. The README warns about exposure but the code enforces nothing."
+    deferred_reason: "Auth gaps, trust boundaries, and transport security are pass 4's rubric and need the contracts phase's security model for grounding."
+  - id: mech-CF3
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "The OperationState mutual exclusion (app.py:461,483,596) uses no lock; correctness rests entirely on the unverified invariant that all three guards execute on the Tk main thread. Also self.closing is read by drain_ui_events (app.py:248) and written by on_close (app.py:745) with no synchronization."
+    deferred_reason: "Lock-free invariant verification and cross-thread visibility are pass 3's rubric and need the protocols phase's state machine to check exhaustively."
+  - id: mech-CF4
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "Documentation-versus-implementation drift: the README's atomicity claim (README.md:82-84) overstates the guarantee (see D2.4), and its troubleshooting table attributes 'returned no text' solely to a non-vision model, omitting the blank-page case (see D2.2)."
+    deferred_reason: "Spec-versus-implementation drift is pass 5's rubric and requires the contracts phase's recovered contracts to compare against systematically."
+  - id: mech-CF5
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "The defensive getattr reads at ocr_service.py:91 and 210-211 currently match the installed client (measured this run), but if a field is renamed every delta silently reads empty and the failure surfaces as 'Ollama returned no text' - which the README attributes to a non-vision model. D2.10 is the mild form of this misattribution; the severe form is total and misdiagnosed."
+    deferred_reason: "Provider-contract drift with a misleading diagnostic is pass 5's rubric, judged against the recovered contracts rather than in isolation."
+carry_forward_closures:
+  - arch-CF1
+  - arch-CF2
+  - arch-CF6
+open_question_closures:
+  - q-shutdown-tempdir
+post_pipeline: []
+decisions:
+  - id: mech-D1
+    description: "Closed q-shutdown-tempdir by isolating and executing its mechanism rather than leaving it open. Its Tk half needs a GUI this host lacks, but 'does a daemon thread's finally run at interpreter exit' is toolkit-independent and testable in 15 lines. It does not; the directory survived. Convention C01 applied."
+  - id: mech-D2
+    description: "Used the pre-porting action set (fix before porting / port differently / leave behind) rather than the maintenance set, per the SKILL's instruction to select by the pipeline field in status.yaml, which is full-with-deep-audit."
+  - id: mech-D3
+    description: "Recorded D1.2 (unreachable fallback in on_page_text) even though its docstring shows it is deliberate defensive code, because it is genuinely dead on every current path and a port must not treat it as required behavior."
+  - id: mech-D4
+    description: "Stated D6.2 as tempered rather than confirmed. Measurement shows the uncapped range has not broken anything yet, which is a reason to pin deliberately rather than evidence the risk is theoretical. Reporting the measurement honestly matters more than preserving the finding's original severity framing."
+proposed_conventions:
+  - name: Name the subsystem the error actually came from
+    rule: "An error message must name the subsystem that failed, not the subsystem the call was aimed at. When a wrapper spans both local work and a remote call, classify the cause before attributing blame in the message a user will read."
+    evidence: "recognize_images wraps everything as 'Ollama request failed on page n/N (model X)', but the client resolves the image path locally and raises ValueError('File ... does not exist') for a missing render - so a local filesystem problem is reported as a server failure with the model name attached (D2.10). The same weakness in severe form is routed as mech-CF5."
+closeout_summary: "23 mechanical defects (3 high, 8 medium, 12 low); temp-dir leak proven by probe; GUI suites found to error, not skip."
+closeout_content: |-
+  # Closeout — defect-scan-mechanical
+
+  ## Summary
+
+  - Ran passes 1 (logic), 2 (error handling), and 6 (config/environment) over
+    all 1,178 lines of first-party source. **23 findings: 0 critical, 3 high,
+    8 medium, 12 low.**
+  - No critical findings. Nothing in the mechanical scope produces silently
+    wrong OCR output or corrupts user data; the three high findings all concern
+    *losing completed work*.
+  - Closed `arch-CF1` (D2.3), `arch-CF2` (D2.5), and `arch-CF6` (D1.6), and
+    closed the open question `q-shutdown-tempdir` on new evidence.
+
+  ## The dominant theme
+
+  All three high findings reduce to one design decision: the OCR pipeline is a
+  single all-or-nothing transaction over N independent network calls.
+
+  - **D2.1** — one failed page raises past `save_markdown_atomic`, discarding
+    every page already recognized. No retry, no partial save.
+  - **D2.2** — a legitimately blank page is treated as fatal and takes the same
+    path, so an ordinary document with an empty verso can abort.
+  - **D2.3** — quitting mid-job neither joins nor cancels the worker.
+
+  ## Two things execution settled that reading could not
+
+  Convention **C01** ("execute the headless layer instead of inferring it")
+  earned its place twice in this phase:
+
+  1. **D2.3 is now `observed fact`.** A 15-line probe reproducing
+     `process_ocr`'s shape — daemon thread doing `mkdtemp` then `finally:
+     rmtree`, main thread returning after 0.4 s — shows the `finally` **does
+     not run** and the temp directory **survives** interpreter exit on Python
+     3.11. The leak is real, not merely plausible. `q-shutdown-tempdir` closed.
+  2. **D1.6 exists at all.** All five GUI suites promise they "are skipped
+     automatically when no display is available (CI, headless containers)", but
+     the guard is in `setUp` while `import app` is at module scope. Without
+     `tkinter` they **error at collection**: `unittest discover` reports 5
+     errors while the service suite passes 72. A guard placed after the thing
+     it guards is not a guard — and those ~470 lines of UI contracts have very
+     likely never executed. This is exactly what convention **C02** was
+     promoted to prevent us from assuming.
+
+  ## A finding tempered rather than confirmed
+
+  **D6.2** (uncapped `PyMuPDF` and `ollama`) is real but **currently
+  unrealized**: the suite passes on PyMuPDF 1.28.2 and Pillow 11.3.0, well
+  above the declared floor, and the installed client still exposes the shapes
+  the `getattr` chains read. That is a reason to pin deliberately and commit a
+  lockfile — not evidence the risk is theoretical. Reported as measured.
+
+  ## What is done well
+
+  Worth recording so a port does not regress it: the `finally`-reschedule in
+  `drain_ui_events`, the non-fatal thumbnail failure path, the single-terminal-
+  event sequencing after cleanup, the frozen `OCRRequest` snapshot taken on the
+  main thread, and the centralized, rationale-commented constants in
+  `config.py` are all deliberate and correct.
+
+  ## Routing
+
+  - Closed `arch-CF1`, `arch-CF2`, `arch-CF6`; closed `q-shutdown-tempdir`.
+  - `mech-CF1`–`mech-CF5` → `defect-scan-semantic`: TOCTOU windows, Ollama
+    transport/trust, the lock-free `OperationState` invariant, README-vs-
+    implementation drift, and provider-contract drift with a misleading
+    diagnostic.
+  - Opened `q-ctk-image-clear` (needs a GUI this host cannot provide).
+  - Proposed one convention: *name the subsystem the error actually came from*
+    (from D2.10).

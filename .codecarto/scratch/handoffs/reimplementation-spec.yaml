@@ -1,0 +1,125 @@
+schema_version: 1
+phase_id: reimplementation-spec
+owner_notes:
+  - "Language-agnostic spec, tagged selection: language-agnostic in the front matter. The Strategic Alignment Hook was not answered interactively and the originating request named no target stack, so per GUIDE.md the default template was used and the choices the hook would have elicited are recorded as q-target-stack and q-scope-tier-commitment rather than guessed."
+  - "Nine concept modules (M1-M9) with the kernel deliberately buildable without any adapter: M1 orchestrator, M5 state machine, and M9 settings must be testable with no page source, recognizer, writer, or shell present. If they are not, the port boundary is wrong."
+  - "44 numbered MUST rules across R1-R10, each traced to a defect disposition or a verified contract and cross-referenced to the acceptance scenario that proves it. All 41 defects are dispositioned - none summarized and dropped."
+  - "The spec makes exactly ONE deliberate contract break, and says so in place: R1 replaces the original's tested all-or-nothing discard with partial success, while R1.4 preserves the half worth keeping (never corrupt or destroy the canonical artifact). Only one existing test needs rewording."
+  - "Nine scenarios encode behavior the original demonstrably fails or that only execution revealed: A2, A5, A11, A12, A13, A14, A21, A28, A29, plus A31's second half. These are the highest-value rows because a faithful port reproduces every one of them."
+  - "Carried the acceptance list's verification-status tiering forward as an Origin column (convention C04). 14 rows are marked A - inherited from GUI tests that error at collection in the original - so they specify intent rather than demonstrated behavior. Dropping that column would have handed an implementer a harness whose weak rows look like its strong ones."
+  - "Only three targeted deep reads were needed beyond the bundle, all against triggers the bundle named explicitly. The compression boundary held."
+open_questions:
+  - id: q-target-stack
+    kind: needs-maintainer-decision
+    description: "No target language, runtime, UI toolkit, project identity, or module naming was committed, so the Strategic Alignment Hook's inputs are absent and this spec is language-agnostic by default. Concurrency, UI, and packaging rules are stated as requirements rather than concrete techniques."
+    deferred_reason: "A product decision the orchestrator owns. Once committed, re-run this phase against templates/reimplementation-spec-opinionated.md - recorded as post-pipeline item pp-opinionated-spec-rerun and carry-forward spec-CF2."
+  - id: q-scope-tier-commitment
+    kind: needs-maintainer-decision
+    description: "Which scope tier is the actual target was never stated. The three tiers are defined, but whether the first release is the minimum viable port or major-workflow parity changes sequencing after Phase 8."
+    deferred_reason: "Requires the same product decision as q-target-stack."
+  - id: q-gui-tests-ever-run
+    kind: needs-maintainer-decision
+    description: "Established that the original's five GUI suites error at collection without the toolkit, so they cannot have passed headless. Whether they pass on a machine with a display - and therefore whether ~470 lines of contracts were ever demonstrated - is unknown, and it sets how far the 14 A-origin acceptance scenarios can be trusted."
+    deferred_reason: "Needs a maintainer statement or a host with a display. R10 and scenario A29 make the port immune regardless of the answer."
+  - id: q-prompt-provenance
+    kind: needs-maintainer-decision
+    description: "The system prompt drives output quality more than any other setting and is specified as preserve-verbatim, but nothing records how it was derived or against which models it was tuned. A port cannot tell which clauses are load-bearing, so it cannot safely simplify it."
+    deferred_reason: "Project history, not source. R8.2's prompt versioning is the mitigation: changes become attributable even while provenance stays unknown."
+  - id: q-queue-depth-under-load
+    kind: needs-runtime-test
+    description: "Real steady-state channel occupancy and delta rates against a production-grade model were never measured, so R2's caps and bounds are specified as requirements without numeric thresholds."
+    deferred_reason: "Needs a GPU-backed model on a multi-page document, which no pipeline phase performs. Routed to a spike (spec-CF1) to set the constants."
+  - id: q-ctk-image-clear
+    kind: needs-runtime-test
+    description: "In the original, clearing a displayed image relies on toolkit-version-dependent null-image behavior, and whether it actually clears was never verified."
+    deferred_reason: "Toolkit-specific and largely moot once a stack is chosen: M8 requires explicit clearing rather than a null assignment, so the port does not inherit the ambiguity."
+carry_forward: []
+carry_forward_closures:
+  - porting-CF1
+  - porting-CF2
+  - porting-CF3
+open_question_closures: []
+post_pipeline:
+  - id: spec-CF1
+    description: "SPIKE - Establish R2's numeric thresholds (per-page and per-document output caps, channel bound, per-cycle observer budget, maximum input page count and byte size) by measuring a real model on real documents. The rules are normative; only the constants are open. Requires executing against a production-grade model, which no pipeline phase performs; guessing the constants would make R2 either toothless or wrong."
+  - id: spec-CF2
+    description: "AMENDMENT - Re-run reimplementation-spec against templates/reimplementation-spec-opinionated.md once a target stack, project identity, module naming, and scope tier are committed, replacing requirement-shaped hazard mitigations with concrete techniques. Blocked on q-target-stack and q-scope-tier-commitment; producing a stack-specific spec now would invent commitments the orchestrator has not made."
+  - id: spec-CF3
+    description: "SPIKE - Prototype the provider adapter against a live server to confirm the complete request envelope beyond image encoding (headers, sibling fields, error-response shapes) so R4's typed error classification maps onto real failures rather than inferred ones. Image encoding is established but no traffic was captured; cheap insurance before Phase 6 substitutes real adapters."
+  - id: pp-opinionated-spec-rerun
+    description: "Orchestrator trigger for spec-CF2: once the stack decision exists, run reimplementation-spec interactively so the Strategic Alignment Hook is actually answered rather than defaulted."
+decisions:
+  - id: spec-D1
+    description: "Proceeded language-agnostic rather than blocking on the Strategic Alignment Hook. The originating request was to analyze the repository and named no stack, project identity, or scope cuts, and GUIDE.md specifies language-agnostic as the default with the un-elicited choices captured as open questions. Guessing a stack would have produced a spec that looks specific and is not."
+  - id: spec-D2
+    description: "Wrote R1 as a deliberate, in-place contract break rather than silently specifying better behavior. The original's all-or-nothing discard is asserted by two PASSING tests, so the spec names which invariant is preserved (never corrupt or destroy the canonical artifact), which is dropped (discard completed work on any failure), and exactly which single test must be reworded."
+  - id: spec-D3
+    description: "Included R10, which constrains the port's own test harness rather than its runtime behavior. Unusual for a reimplementation spec, but the original's misplaced skip guard is what hid ~470 lines of never-executed contracts and is the direct cause of 14 acceptance rows carrying weak evidence."
+  - id: spec-D4
+    description: "Carried the acceptance list's evidence tiering forward as an Origin column instead of flattening it into a uniform scenario list, per convention C04. It marks 14 rows as inherited-but-unverified and 9 as encoding behavior the original fails, which is the difference between a parity harness and a wish list."
+  - id: spec-D5
+    description: "Specified R2's bounds as normative rules with the numeric thresholds deliberately left to a spike (spec-CF1). The original's real load characteristics were never measured, so inventing constants would have been false precision in a document whose rules are otherwise all traceable."
+proposed_conventions:
+  - name: State a contract break in place, with the test list
+    rule: "When a spec deliberately diverges from behavior the source asserts in a passing test, say so at the rule itself: name the invariant preserved, the one dropped, and each test that must change. Never let a break read as though the source simply had no opinion."
+    evidence: "R1 replaces the original's all-or-nothing discard, which two passing service-suite tests assert. Stating the split in place made the cost concrete - exactly one test needs rewording, because R1.4 preserves the half that actually protects the user."
+closeout_summary: "Language-agnostic spec: 9 modules, 44 MUST rules, 35 acceptance scenarios, kernel-first sequence; all 41 defects dispositioned."
+closeout_content: |-
+  # Closeout — reimplementation-spec
+
+  ## Summary
+
+  - Produced a **language-agnostic** reimplementation spec (front matter
+    `selection: language-agnostic`): nine concept modules, 44 numbered MUST
+    rules, 35 black-box acceptance scenarios, a kernel-first implementation
+    sequence in nine phases, three scope tiers, and eight spikes.
+  - Closed `porting-CF1`, `porting-CF2`, and `porting-CF3`.
+  - **All 41 defects from both scans are dispositioned** — the 4 high and 16
+    medium each became a numbered MUST rule citing its defect ID; the 21 low
+    were absorbed into rules or named explicitly as left-behind non-goals.
+
+  ## The one deliberate contract break
+
+  R1 replaces the original's all-or-nothing discard with first-class partial
+  success. Because two **passing** tests assert the old behavior, the spec names
+  the split at the rule itself:
+
+  - **Preserved (R1.4):** never leave the canonical artifact corrupt or partial,
+    and never destroy it except by a successful complete write.
+  - **Dropped:** discard all completed work when any page fails.
+
+  Cost: exactly one test needs rewording. `test_late_page_failure_preserves_
+  existing_output` is satisfied by R1.4 unchanged.
+
+  ## What execution bought this spec
+
+  Nine scenarios encode behavior the original **demonstrably fails**, and none
+  of them would exist from reading alone: the proven temp-directory leak on quit
+  (A11, A12), the local-error-as-remote misattribution (A13), the silent
+  coercion of an unrecognized response shape (A14), the overwrite guard that
+  checks minutes too early (A21), the platform action that cannot report failure
+  (A28), and the headless test run that errors instead of skipping (A29).
+
+  R10 is the unusual one — it constrains the port's *own test harness*. Kept
+  deliberately: the original's misplaced skip guard is what hid ~470 lines of
+  never-executed contracts, and it is why 14 acceptance rows carry the `A`
+  (asserted-not-verified) origin tag rather than `V`.
+
+  ## Compression boundary held
+
+  Only **three** targeted deep reads were needed beyond the bundle, each against
+  a trigger the bundle named explicitly: the acceptance list, the event catalog
+  plus SM1, and two defect rationales. The architecture map, contracts,
+  protocols, and both scan reports were never reloaded wholesale.
+
+  ## What remains open
+
+  Six Known Unknowns, and the two that matter most are the same decision: **no
+  target stack and no scope tier are committed**, so hazard mitigations are
+  stated as requirements rather than techniques. The right follow-up is an
+  opinionated re-run once that decision exists (`spec-CF2`,
+  `pp-opinionated-spec-rerun`) — recorded as an amendment, not a gap.
+
+  Two spikes carry real engineering risk: `spec-CF1` sets R2's numeric
+  thresholds by measurement rather than guesswork, and `spec-CF3` confirms the
+  provider envelope so R4's error taxonomy maps onto real failures.

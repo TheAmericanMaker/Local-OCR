@@ -1,0 +1,112 @@
+schema_version: 1
+phase_id: protocols
+owner_notes:
+  - "Six protocol boundaries formalized with the nine required fields each, plus a nine-event payload catalog and four state machines. Configuration is explicitly NOT a boundary - config.py is imported directly with no serialization, precedence, or reload path."
+  - "RESOLVED the previous run's largest unknown, per convention C01. Page images are passed to the client as path strings; the client's Image.serialize_model reads the file and base64-encodes it into the JSON body. Exercised directly: model_dump() returns a str beginning iVBORw0KGgo with the path absent. So the wire format is base64 bytes, a remote server never sees the path, and there is no path-passing shortcut for a port."
+  - "That same inspection produced hazard H14: the client raises a LOCAL ValueError('File ... does not exist') for a missing render, from inside the app's remote-error wrapper, so a filesystem problem is reported as 'Ollama request failed (model x)'. This is the live form of the misattribution convention C03 exists to prevent."
+  - "The most useful protocol property: B1 events split three ways. Observational events drive UI only - the saved Markdown comes from recognize_images' return value, not the event stream, so losing all of them still produces a byte-identical file. Only four events are state-bearing, and losing one strands the state machine permanently."
+  - "SM1 has no cancellation transition and no error state. The missing error state is why the app can never offer retry: it keeps no memory of the last outcome."
+  - "Per C02/C04, SM2/SM3/SM4 are marked asserted-not-verified because they are pinned only by the GUI suites, which error at collection here. This is the weakest-evidenced part of the protocol description and is stated rather than averaged away."
+open_questions:
+  - id: q-queue-depth-under-load
+    kind: needs-runtime-test
+    description: "With no maxsize and a 50ms drain interval, the steady-state event-queue depth against a fast local model is unknown. It determines whether D2.5's unbounded growth is a theoretical or a practical concern, and therefore how urgently a port needs bounded channels."
+    deferred_reason: "Needs measurement against a real GPU-backed model on a multi-page document. No static reading yields a number, and no model is available in this environment - convention C01 was applied and does not reach here."
+carry_forward:
+  - id: protocols-CF1
+    kind: defer-to-phase
+    target_phase: porting
+    description: "The B1 event schema carries no job identifier, sequence number, or timestamp, and SM1 has no cancellation transition and no error state. Any port adding cancellation, concurrent page recognition, per-page retry, or resume must extend the event schema and the state machine together - these are one design change, not four."
+    deferred_reason: "Choosing the extended protocol shape is a synthesis judgment depending on the defect synthesis (D2.1, D2.3, S3.1) and the tested-contract tradeoffs already routed as contracts-CF1. Deciding it here would fix a design before the port's goals are known."
+  - id: protocols-CF2
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "The defensive getattr reads at ocr_service.py:91 and 210-211 currently match the installed client (verified by introspection), but a field rename makes every delta read empty and surfaces as 'Ollama returned no text', which the README attributes to a non-vision model. Hazard H14 / defect D2.10 is the mild, already-live form of the same misattribution."
+    deferred_reason: "Provider-contract drift with a misleading diagnostic is pass 5's rubric, judged against the recovered contracts. The measured currently-matching status is evidence the semantic pass should weigh, not a reason to drop the finding."
+carry_forward_closures:
+  - arch-CF3
+  - contracts-CF3
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - id: protocols-D1
+    description: "Recorded configuration as explicitly NOT a protocol boundary and did not write findings/config-model/config-model.md. The skill says to treat config propagation as a protocol when it crosses boundaries; here config.py is imported directly by every consumer with no serialization, precedence chain, or reload path, so nothing crosses and there is no propagation protocol to document. Accounted for in Coverage and limits per the v0.16.0 orchestrator duty."
+  - id: protocols-D2
+    description: "Resolved the image-encoding question by reading and exercising the third-party client's serializer rather than carrying it as an open question. The previous run deferred it as out-of-scope third-party inspection and called it the largest unknown for a port; convention C01 makes reaching for it the default when the cost is one function call."
+  - id: protocols-D3
+    description: "Documented four state machines rather than only OperationState, and labelled each with its evidence tier. SM2/SM3/SM4 have real guards and side effects and SM3 encodes the non-obvious invariant that the live panel stays byte-identical to the saved file, but all three rest on unexecuted GUI tests - so the tier label carries as much information as the transitions."
+  - id: protocols-D4
+    description: "Classified B1 events into observational / synchronous-barrier / state-bearing. Not a template section, but it is the property that tells a port which events may be dropped safely, and it converts D2.6's severity into a precise statement about which four events need guaranteed delivery."
+proposed_conventions:
+  - name: Read the dependency when its behavior is the contract
+    rule: "When a third-party call site IS the protocol - the app hands over a value and the library decides what crosses the wire - read or exercise that library's own code rather than deferring it as out-of-scope. Treat 'third-party internals' as out of scope for auditing quality, not for establishing the contract the port must reproduce."
+    evidence: "The wire encoding of page images was the previous run's self-declared largest unknown for a cross-language port, deferred as third-party inspection. One read of Image.serialize_model plus one model_dump() call settled it as base64-in-JSON and simultaneously produced hazard H14."
+closeout_summary: "Six boundaries and a nine-event catalog formalized; image wire encoding resolved to base64-in-JSON; 14 hazards recorded."
+closeout_content: |-
+  # Closeout — protocols
+
+  ## Summary
+
+  - Formalized six protocol boundaries with the nine required fields each, gave
+    all nine event kinds explicit payload schemas, and tabulated four state
+    machines — closing `arch-CF3` and `contracts-CF3`.
+  - Recorded 14 compatibility hazards, three `high`.
+
+  ## Resolved: how page images actually reach the server
+
+  The previous pass called this the single largest unknown for a cross-language
+  port and deferred it as third-party inspection. Convention **C01** made
+  reaching for it the default, and it took one read plus one call:
+
+  The app passes a **path string**; the client's `Image.serialize_model` reads
+  the file and **base64-encodes it into the JSON body**. Exercised directly,
+  `Image(value=str(path)).model_dump()` returns a `str` beginning
+  `iVBORw0KGgo` — PNG magic — with the path **absent**.
+
+  So: the wire format is base64 file bytes; a remote server never sees the
+  path; and a port must base64 the bytes with the file readable and unmoved for
+  the whole request.
+
+  The same read produced **hazard H14**: branch 3 of that serializer raises a
+  *local* `ValueError('File ... does not exist')` from inside the app's
+  *remote*-error wrapper, so a missing render is reported as `Ollama request
+  failed … (model 'x')`. That is the already-live form of the misattribution
+  convention **C03** was promoted to prevent.
+
+  ## The property a port should build around
+
+  B1's events split three ways, and the split decides what may be dropped:
+
+  - **Observational** (`log`, `progress`, `page_image`, `stream_chunk`,
+    `page_text`) — UI only. The saved Markdown is built from
+    `recognize_images`' *return value*, so losing every one still produces a
+    byte-identical file.
+  - **Synchronous barriers** — three, inside the worker, invisible to the queue.
+  - **State-bearing** (`models_loaded`, `refresh_error`, `ocr_success`,
+    `ocr_error`) — the only four that drive a transition. Losing one strands
+    the machine permanently.
+
+  That makes D2.6 precise: event loss is cosmetic except for four kinds.
+
+  ## State machine properties, and their evidence
+
+  SM1 has **no cancellation transition**, **no error state**, and exactly four
+  exits from a busy state. The missing error state is why the app can never
+  offer "retry."
+
+  SM2, SM3, and SM4 are real machines with real guards — but they are pinned
+  **only** by the GUI suites, which error at collection here. Per C02/C04 they
+  are labelled `asserted-not-verified`, making them the weakest-evidenced part
+  of this document rather than silently equal to SM1.
+
+  ## Routing
+
+  - Closed `arch-CF3` and `contracts-CF3`.
+  - `protocols-CF1` → `porting` (event schema and state machine must be
+    extended together for cancellation/retry/concurrency/resume).
+  - `protocols-CF2` → `defect-scan-semantic` (provider drift; note the fields
+    currently match, which is evidence to weigh rather than a reason to drop).
+  - Opened `q-queue-depth-under-load`; **did not** carry
+    `q-ollama-image-encoding`, which is now resolved.
+  - Proposed one convention: *read the dependency when its behavior is the
+    contract*.

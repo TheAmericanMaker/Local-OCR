@@ -33,3 +33,7 @@ build-mac.sh
 
 # Syncthing
 .syncthing.*
+
+# CodeCartographer workspace backups (created by codecarto_init --force;
+# the superseded run is preserved in git history)
+.codecarto-backup-*/

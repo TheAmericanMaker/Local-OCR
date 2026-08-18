@@ -1,0 +1,127 @@
+schema_version: 1
+phase_id: architecture
+owner_notes:
+  - "Four first-party modules in a strict acyclic stack: main.py -> app.py -> ocr_service.py -> config.py. config.py contains no import statement at all and is the stable base."
+  - "The Tk boundary is the load-bearing architectural line, and this run VERIFIED it by execution rather than inferring it: with no tkinter module present on the host, the 1,069-line service suite ran 72 passed / 1 skipped / 0 failures. That upgrades the docstring's claim to observed fact. The rule is still enforced only by convention - no import lint asserts it - so it can regress silently."
+  - "Exactly one cross-thread channel: an unbounded queue.Queue of (kind, payload) tuples. Workers only put, the Tk main thread only drains, every 50ms. No locks anywhere; mutual exclusion is an OperationState enum checked on the main thread."
+  - "Running the suite also surfaced a defect the previous reading missed: the five GUI test files document that they skip on a headless host, but their skip guard is in setUp while 'import app' is at module scope, so without tkinter they ERROR (5 errors) instead of skipping. Routed as arch-CF6."
+  - "No persistence beyond the output .md: no config file, no env vars, no saved preferences. URL/model/DPI reset on every launch."
+open_questions:
+  - id: q-shutdown-tempdir
+    kind: needs-runtime-test
+    description: "Quitting mid-OCR destroys the Tk root while a daemon worker is inside process_ocr; whether the outer finally at ocr_service.py:364 runs before interpreter exit, and therefore whether the local_ocr_* temp directory leaks, cannot be determined by reading."
+    deferred_reason: "Requires a GUI session - launch, start a multi-page job, quit mid-run, inspect the temp dir. This host has no tkinter, so unlike the service layer it could not be tested here. The mechanical scan will rate the code hazard via arch-CF1."
+  - id: q-test-invocation
+    kind: needs-maintainer-decision
+    description: "RE-TRIAGED this run and narrowed. 'python3 -m unittest tests.test_ocr_service' is now confirmed working (72 passed). What remains unknown is only the project's intended runner: .gitignore references .pytest_cache/ while the tests are written against unittest, and no runner config is committed."
+    deferred_reason: "The residue is a maintainer convention rather than a code fact, and it now blocks nothing because a working command is established. Retained only so the port's CI setup records the ambiguity."
+carry_forward:
+  - id: arch-CF1
+    kind: defer-to-phase
+    target_phase: defect-scan-mechanical
+    description: "Shutdown path (app.py:743-752) neither joins nor signals the daemon OCR worker; process_ocr's cleanup finally may be skipped at interpreter exit, and no cancellation mechanism exists at all."
+    deferred_reason: "Resource-cleanup and error-handling hazards are the mechanical scan's rubric (pass 2). Architecture records the structural fact; the scan assigns severity and recommended action."
+  - id: arch-CF2
+    kind: defer-to-phase
+    target_phase: defect-scan-mechanical
+    description: "The queue.Queue at app.py:59 has no maxsize and no backpressure, and per-page PNG bytes in review_pages are never evicted, so memory growth is unbounded in document length."
+    deferred_reason: "Resource-exhaustion assessment with severity and a recommended bound belongs to the mechanical scan, not the structural map."
+  - id: arch-CF3
+    kind: defer-to-phase
+    target_phase: protocols
+    description: "The worker-to-UI event catalog (log, progress, page_image, page_text, stream_chunk, models_loaded, refresh_error, ocr_success, ocr_error) is enumerated by name and dispatch site, but payload schemas, ordering guarantees, and the OperationState transition table are not formalized."
+    deferred_reason: "Event catalogs, wire shapes, and state machines are precisely the protocols phase's rubric; specifying them here would duplicate that work and risk drift."
+  - id: arch-CF4
+    kind: defer-to-phase
+    target_phase: contracts
+    description: "Per-surface behavioral contracts - every validation message, the overwrite-confirmation flow, defaults, and a black-box acceptance list - are visible in app.py and ocr_service.py but not recovered as contracts. The ~1,540 lines of tests are the richest evidence source and were deliberately not mined."
+    deferred_reason: "Trigger/defaults/side-effects/error-behavior recovery is the contracts phase's rubric, and its skill directs mining tests as behavioral evidence."
+  - id: arch-CF5
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "PNG decode and CTkImage construction run on the Tk main thread (app.py:317-324, 368-374), and render_pdf rasterizes all pages before recognition starts (ocr_service.py:121-137). Both are main-thread responsiveness concerns rather than pure logic bugs."
+    deferred_reason: "Concurrency and responsiveness analysis needs the state machine and event ordering from protocols in hand; the semantic pass runs after protocols for exactly this reason."
+  - id: arch-CF6
+    kind: defer-to-phase
+    target_phase: defect-scan-mechanical
+    description: "NEW, found by execution. The five GUI test files document that they are 'skipped automatically when no display is available (CI, headless containers)' and each guards LocalOCRApp() in setUp with a skipTest fallback - but 'import app as app_module' is at module scope, so on a host without tkinter the import raises ModuleNotFoundError before any skip logic runs. unittest discover reports 5 errors, not 5 skips, while the service suite passes cleanly."
+    deferred_reason: "Whether a documented skip that actually errors is a defect, and at what severity, is the mechanical scan's rubric (a guard that does not guard). Architecture records the observation; the scan rates it."
+carry_forward_closures: []
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - id: arch-D1
+    description: "Did not write the secondary output findings/build-and-deploy/build-and-deploy.md. The build surface is four dependency lines and one command, with no packaging, CI, or build artifacts; the skill directs using that file only when the pipeline is complex. Accounted for explicitly in Coverage and limits per the v0.16.0 orchestrator duty."
+  - id: arch-D2
+    description: "Did not write the secondary output findings/config-model/config-model.md. The config model is one flat set of module constants with no file, no env vars, and no precedence chain. Accounted for explicitly in Coverage and limits per the v0.16.0 orchestrator duty."
+  - id: arch-D3
+    description: "Installed Pillow, PyMuPDF and ollama and executed the service test suite rather than reasoning about it. The Tk-free boundary makes this possible without a display, and it converted three inferred claims into observed facts and surfaced arch-CF6, which pure reading had gotten wrong."
+  - id: arch-D4
+    description: "Read test file structure (class names, sizes) but not test bodies. Mining tests as behavioral evidence is the contracts phase's rubric; routed as arch-CF4 rather than pre-empted here."
+proposed_conventions:
+  - name: Execute the headless layer instead of inferring it
+    rule: "Where a layer can run without the GUI toolkit, run it and cite the result rather than reasoning about it. Prefer executed evidence over strong inference whenever the cost is a package install, and record the exact command in Coverage and limits."
+    evidence: "The Tk-free boundary let this run execute the 1,069-line service suite on a host with no tkinter (72 passed / 1 skipped). It upgraded three inferred claims to observed fact and revealed arch-CF6, which a pure reading had concluded the opposite about."
+  - name: A test's existence is not evidence that it runs
+    rule: "Never treat the presence of a test, or its own docstring about when it skips, as evidence that the behavior is verified. Establish separately whether the test actually executes in the environment it claims to handle, and mark contracts backed only by unexecuted tests as asserted-not-verified."
+    evidence: "The five GUI suites document that they skip on a headless host; in fact they error at module import, so the ~470 lines of UI contracts they pin have very likely never run in a container. See arch-CF6."
+closeout_summary: "Four-module acyclic stack mapped; Tk boundary verified by executing 72 service tests headlessly; six routings opened."
+closeout_content: |-
+  # Closeout — architecture
+
+  ## Summary
+
+  - Mapped Local-OCR as four first-party modules in a strict acyclic stack:
+    `main.py` -> `app.py` -> `ocr_service.py` -> `config.py`, with `config.py`
+    as the stable base (it contains no `import` statement) and no cycles.
+  - Catalogued a GUI-only public surface (no CLI flags, no listener, no library
+    API), outbound Ollama HTTP, and the `<stem>_extracted.md` output format.
+  - Documented the concurrency model: Tk main thread plus at most one
+    short-lived daemon worker, mutual exclusion via an `OperationState` enum
+    checked on the main thread, and exactly one cross-thread channel — an
+    unbounded `queue.Queue` drained every 50 ms. No locks exist.
+  - Established porting priorities across 16 components.
+
+  ## Verified by execution, not inferred
+
+  The central structural claim — that `ocr_service.py` is Tk-free so the
+  service layer is headlessly testable — was **tested rather than asserted**.
+  With no `tkinter` module present on this host, installing only `Pillow`,
+  `PyMuPDF`, and `ollama` was enough to run the service suite:
+  **72 passed, 1 skipped, 0 failures in 0.52 s**, on PyMuPDF 1.28.2 and Pillow
+  11.3.0 — far newer than the declared floor. The boundary genuinely holds.
+
+  Introspecting the installed client also confirmed that `ChatResponse.message`
+  → `Message.content` and `ListResponse.models[].model` still exist, so the
+  defensive `getattr` chains in `ocr_service` are currently satisfied rather
+  than masking drift.
+
+  ## What execution found that reading missed
+
+  The five GUI test files state they "are skipped automatically when no display
+  is available (CI, headless containers)", and each wraps `LocalOCRApp()` in a
+  `try/except` that calls `skipTest`. But `import app as app_module` sits at
+  **module scope**, so without `tkinter` the import fails before any skip logic
+  runs: `unittest discover` reports **5 errors**, not 5 skips.
+
+  A reading-only pass concluded these suites "self-skip without a display."
+  That is wrong in the case that matters — a headless container — and it means
+  the ~470 lines of UI contracts they pin have very likely never executed.
+  Routed as `arch-CF6`.
+
+  ## Secondary outputs
+
+  All five declared outputs are accounted for, per the v0.16.0 orchestrator
+  duty: `public-surfaces`, `runtime-lifecycle`, and `state-and-storage` were
+  written; `build-and-deploy` and `config-model` were deliberately skipped
+  (trivial build surface; flat constant config) with the rationale recorded in
+  Coverage and limits as `arch-D1` and `arch-D2`.
+
+  ## Routing
+
+  - `arch-CF1`, `arch-CF2`, `arch-CF6` → `defect-scan-mechanical`.
+  - `arch-CF3` → `protocols`; `arch-CF4` → `contracts`;
+    `arch-CF5` → `defect-scan-semantic`.
+  - `q-shutdown-tempdir` stays open (needs a GUI session this host cannot
+    provide). `q-test-invocation` is **re-triaged and narrowed**: a working
+    command is now established; only the project's preferred runner is unknown.
