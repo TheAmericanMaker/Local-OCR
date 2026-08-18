@@ -39,3 +39,5 @@ grep -E '^- [0-9]{4}-[0-9]{2}-[0-9]{2}' .codecarto/THREAD_LOG.md | sort | uniq -
 - 2026-05-02 — framework-feedback-pass — applied 6 spec-blockers + 5 clarifications from FEEDBACK_INDEX.md; 14 deferred to BACKLOG.md — [closeout](closeouts/2026-05-02-framework-feedback-pass.md)
 - 2026-08-18 — architecture — Four-module acyclic stack mapped; Tk boundary verified by executing 72 service tests headlessly; six routings opened. — [closeout](closeouts/2026-08-18-architecture.md)
 - 2026-08-18 — defect-scan-mechanical — 23 mechanical defects (3 high, 8 medium, 12 low); temp-dir leak proven by probe; GUI suites found to error, not skip. — [closeout](closeouts/2026-08-18-defect-scan-mechanical.md)
+- 2026-08-18 — contracts — 13 contracts and 42 acceptance scenarios recovered; evidence split into verified and asserted-not-verified tiers. — [closeout](closeouts/2026-08-18-contracts.md)
+- 2026-08-18 — protocols — Six boundaries and a nine-event catalog formalized; image wire encoding resolved to base64-in-JSON; 14 hazards recorded. — [closeout](closeouts/2026-08-18-protocols.md)

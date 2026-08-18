@@ -125,7 +125,55 @@ than one that says less.
 
 ---
 
-## C04. <Title>
+## C04. Record verification status alongside every acceptance scenario
+
+An acceptance list must say, **per scenario**, whether an equivalent assertion currently passes,
+exists but is unverified, or does not exist at all. A flat list silently averages strong and weak
+evidence and invites a reader to assume uniform coverage.
+
+**Why:** Local-OCR's 42 scenarios split **28 verified / 14 asserted-not-verified / 2 known-failing**.
+The 14 rest on the five GUI suites, which error at collection and have very likely never run
+(D1.6); without the column they read exactly like the 28 backed by the passing 1,069-line service
+suite. The two known-failing rows (41, 42) would also have been invisible as *failures* rather than
+aspirations.
+
+**How to apply:** applies to `contracts` when building the acceptance list and to
+`reimplementation-spec` when turning it into a parity harness. Carry the status forward — a spec that
+drops it hands the implementer a harness whose weak rows are indistinguishable from its strong ones.
+This is C02 applied at list granularity rather than per claim.
+
+**Current implementers:** the contracts phase (§Black-Box Acceptance List, **V** column).
+
+**Source:** `closeouts/2026-08-18-contracts.md`.
+
+---
+
+## C05. Read the dependency when its behavior is the contract
+
+When a third-party call site **is** the protocol — the app hands over a value and the library decides
+what crosses the wire — read or exercise that library's own code rather than deferring it as
+out-of-scope. "Third-party internals are out of scope" applies to *auditing their quality*, not to
+*establishing the contract the port must reproduce*.
+
+**Why:** the wire encoding of page images was the previous run's self-declared largest unknown for a
+cross-language port, deferred precisely because it required third-party inspection. Settling it took
+one read of `Image.serialize_model` and one `model_dump()` call: base64 file bytes in the JSON body,
+path never sent. The same read produced hazard **H14** — a local `ValueError` raised from inside the
+app's remote-error wrapper. A question can be both out of scope to audit and trivial to answer.
+
+**How to apply:** applies when a phase is about to record an `open_question` about behavior that lives
+in a dependency the app hands data to — serializers, encoders, transport clients, format writers. Ask
+whether one read or one call would settle it. Does **not** license auditing the dependency for
+defects; the finding is the *contract*, not the library's quality. Complements C01: C01 says execute
+your own layer, C05 says read the layer you delegate to.
+
+**Current implementers:** the protocols phase (§B3 wire encoding; hazards H1, H14).
+
+**Source:** `closeouts/2026-08-18-protocols.md`.
+
+---
+
+## C06. <Title>
 
 
 <!-- Lead with the rule itself. -->
@@ -146,5 +194,4 @@ than one that says less.
 
 Staged by completion from each phase handoff's `proposed_conventions`. The orchestrator promotes an entry into a numbered convention above (or removes it with a note) at the phase boundary — see GUIDE.md §Roles.
 
-*(none pending — C01/C02 promoted at the architecture boundary; C03 promoted at the defect-scan-mechanical → contracts boundary.)*
-
+*(none pending — C01/C02 at architecture; C03 at defect-scan-mechanical; C04 at contracts; C05 at protocols.)*
