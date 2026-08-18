@@ -1,7 +1,7 @@
 project_name: Local-OCR
 pipeline: workflow/pipeline-full-with-deep-audit.yaml
-current_phase: defect-scan-semantic
-last_updated: "2026-08-18T03:14:05.486Z"
+current_phase: reimplementation-spec
+last_updated: "2026-08-18T03:21:05.885Z"
 schema_version: 1
 phases:
   architecture:
@@ -23,13 +23,7 @@ phases:
         kind: needs-maintainer-decision
         description: "RE-TRIAGED this run and narrowed. 'python3 -m unittest tests.test_ocr_service' is now confirmed working (72 passed). What remains unknown is only the project's intended runner: .gitignore references .pytest_cache/ while the tests are written against unittest, and no runner config is committed."
         deferred_reason: "The residue is a maintainer convention rather than a code fact, and it now blocks nothing because a working command is established. Retained only so the port's CI setup records the ambiguity."
-    carry_forward:
-      -
-        id: arch-CF5
-        kind: defer-to-phase
-        description: "PNG decode and CTkImage construction run on the Tk main thread (app.py:317-324, 368-374), and render_pdf rasterizes all pages before recognition starts (ocr_service.py:121-137). Both are main-thread responsiveness concerns rather than pure logic bugs."
-        deferred_reason: "Concurrency and responsiveness analysis needs the state machine and event ordering from protocols in hand; the semantic pass runs after protocols for exactly this reason."
-        target_phase: defect-scan-semantic
+    carry_forward: []
   defect-scan-mechanical:
     status: complete
     owner_notes:
@@ -50,37 +44,7 @@ phases:
         kind: needs-runtime-test
         description: "_clear_preview (app.py:329) and _clear_review (app.py:341) clear a displayed image via CTkLabel.configure(image=None). Whether customtkinter removes the underlying Tk image or retains the previous one is version-dependent, and requirements.txt pins a range (>=6.0.0,<7) rather than an exact version. If it retains, a previous run's last page stays visible behind a cleared panel."
         deferred_reason: "Requires a GUI session against a specific customtkinter build. This host has no tkinter, so unlike D2.3's mechanism this one could not be isolated and executed - convention C01 was applied and does not reach here."
-    carry_forward:
-      -
-        id: mech-CF1
-        kind: defer-to-phase
-        description: "TOCTOU windows: validate_input_path runs at app.py:606 and the overwrite check at app.py:633, both well before the worker reads the input (ocr_service.py:331) or writes the output (ocr_service.py:362). The file can be replaced, deleted, or created in between."
-        deferred_reason: "Time-of-check/time-of-use is a trust-boundary and race concern - pass 3/4 in defect-scan-semantic - not a local logic defect visible to the mechanical passes."
-        target_phase: defect-scan-semantic
-      -
-        id: mech-CF2
-        kind: defer-to-phase
-        description: "Transport and trust: normalize_ollama_url accepts any http:// host (ocr_service.py:55), the default is plaintext, Ollama has no authentication, and full document page images are transmitted to whatever host is entered. The README warns about exposure but the code enforces nothing."
-        deferred_reason: "Auth gaps, trust boundaries, and transport security are pass 4's rubric and need the contracts phase's security model for grounding."
-        target_phase: defect-scan-semantic
-      -
-        id: mech-CF3
-        kind: defer-to-phase
-        description: "The OperationState mutual exclusion (app.py:461,483,596) uses no lock; correctness rests entirely on the unverified invariant that all three guards execute on the Tk main thread. Also self.closing is read by drain_ui_events (app.py:248) and written by on_close (app.py:745) with no synchronization."
-        deferred_reason: "Lock-free invariant verification and cross-thread visibility are pass 3's rubric and need the protocols phase's state machine to check exhaustively."
-        target_phase: defect-scan-semantic
-      -
-        id: mech-CF4
-        kind: defer-to-phase
-        description: "Documentation-versus-implementation drift: the README's atomicity claim (README.md:82-84) overstates the guarantee (see D2.4), and its troubleshooting table attributes 'returned no text' solely to a non-vision model, omitting the blank-page case (see D2.2)."
-        deferred_reason: "Spec-versus-implementation drift is pass 5's rubric and requires the contracts phase's recovered contracts to compare against systematically."
-        target_phase: defect-scan-semantic
-      -
-        id: mech-CF5
-        kind: defer-to-phase
-        description: "The defensive getattr reads at ocr_service.py:91 and 210-211 currently match the installed client (measured this run), but if a field is renamed every delta silently reads empty and the failure surfaces as 'Ollama returned no text' - which the README attributes to a non-vision model. D2.10 is the mild form of this misattribution; the severe form is total and misdiagnosed."
-        deferred_reason: "Provider-contract drift with a misleading diagnostic is pass 5's rubric, judged against the recovered contracts rather than in isolation."
-        target_phase: defect-scan-semantic
+    carry_forward: []
   contracts:
     status: complete
     owner_notes:
@@ -106,25 +70,7 @@ phases:
         kind: needs-maintainer-decision
         description: "SYSTEM_PROMPT drives output quality more than any other setting and is asserted verbatim by a passing test, but nothing records how it was derived, what alternatives were rejected, or which models it was tuned against. A port cannot tell which clauses are load-bearing."
         deferred_reason: "Project history rather than source. Unresolvable by any phase's rubric."
-    carry_forward:
-      -
-        id: contracts-CF1
-        kind: defer-to-phase
-        description: "The all-or-nothing transaction is a verified, passing contract (test_late_page_failure_leaves_no_new_output and test_late_page_failure_preserves_existing_output, both service-suite), not an oversight. Any partial-save or resume design deliberately breaks two passing tests, and that tradeoff needs an explicit decision with the defect synthesis in view."
-        deferred_reason: "Reconciling a passing contract against a high-severity defect is a synthesis judgment - what porting's Defect Synthesis section exists for. Deciding it here would pre-empt that section without the semantic scan's input."
-        target_phase: porting
-      -
-        id: contracts-CF2
-        kind: defer-to-phase
-        description: "The progress formulas are asserted by test_ocr_phase_without_render, so D1.1 is a locked-in design choice - but that test is GUI-only and unverified, so the contract is specified rather than demonstrated. A port must decide whether to preserve the tested formula or fix the UX, knowing the test may never have run."
-        deferred_reason: "Same class as contracts-CF1, with the added wrinkle that the contract's evidentiary weight is low. The porting synthesis is where defect-versus-contract tradeoffs get decided."
-        target_phase: porting
-      -
-        id: contracts-CF4
-        kind: defer-to-phase
-        description: "Acceptance rows 41 and 42 are the only two the current implementation demonstrably fails: the mid-run temp-dir leak (proven by probe, D2.3) and the headless test run erroring rather than skipping (measured, D1.6). Both must survive into the spec as normative rules, not as observations."
-        deferred_reason: "The spec phase converts defects into normative rules plus scenarios; routing through porting keeps them attached to their dispositions rather than floating free."
-        target_phase: porting
+    carry_forward: []
   protocols:
     status: complete
     owner_notes:
@@ -145,31 +91,58 @@ phases:
         kind: needs-runtime-test
         description: "With no maxsize and a 50ms drain interval, the steady-state event-queue depth against a fast local model is unknown. It determines whether D2.5's unbounded growth is a theoretical or a practical concern, and therefore how urgently a port needs bounded channels."
         deferred_reason: "Needs measurement against a real GPU-backed model on a multi-page document. No static reading yields a number, and no model is available in this environment - convention C01 was applied and does not reach here."
-    carry_forward:
-      -
-        id: protocols-CF1
-        kind: defer-to-phase
-        description: "The B1 event schema carries no job identifier, sequence number, or timestamp, and SM1 has no cancellation transition and no error state. Any port adding cancellation, concurrent page recognition, per-page retry, or resume must extend the event schema and the state machine together - these are one design change, not four."
-        deferred_reason: "Choosing the extended protocol shape is a synthesis judgment depending on the defect synthesis (D2.1, D2.3, S3.1) and the tested-contract tradeoffs already routed as contracts-CF1. Deciding it here would fix a design before the port's goals are known."
-        target_phase: porting
-      -
-        id: protocols-CF2
-        kind: defer-to-phase
-        description: "The defensive getattr reads at ocr_service.py:91 and 210-211 currently match the installed client (verified by introspection), but a field rename makes every delta read empty and surfaces as 'Ollama returned no text', which the README attributes to a non-vision model. Hazard H14 / defect D2.10 is the mild, already-live form of the same misattribution."
-        deferred_reason: "Provider-contract drift with a misleading diagnostic is pass 5's rubric, judged against the recovered contracts. The measured currently-matching status is evidence the semantic pass should weigh, not a reason to drop the finding."
-        target_phase: defect-scan-semantic
+    carry_forward: []
   defect-scan-semantic:
-    status: pending
-    owner_notes: []
-    outputs_present: []
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/defect-scan-semantic/semantic-defects.md"
+      - "Validation: PASS"
+      - "18 findings across passes 3/4/5: 0 critical, 1 high, 8 medium, 9 low. Combined with the mechanical scan the full audit is 41 findings: 0 critical, 4 high, 16 medium, 21 low."
+      - "All seven routed carry-forwards resolved, none re-routed. One refuted (mech-CF3) and one downgraded on evidence (protocols-CF2 to medium)."
+      - "The contradiction sweep changed a headline finding rather than being smoothed over. The previous pass rated provider-drift high partly because it was 'reachable today through ordinary dependency resolution'. The protocols phase then measured that the installed client still exposes ChatResponse.message.content and ListResponse.models[].model, contradicting that premise. S5.1 is now medium, with the reasoning stated. Downgrading on evidence beat preserving a headline."
+      - "mech-CF3 refuted: enumerating every operation_state and self.closing access site shows all reads and writes are on the Tk main thread; workers touch nothing but event_queue.put. The lock-free design is correct and a lock would add nothing. The invariant to carry is that all mutable UI state is confined to one thread and the queue is the only shared object - a port must re-establish that explicitly rather than read the absence of locks as the absence of a concurrency contract."
+      - "Two findings were sharpened by the protocols phase's resolution of the wire encoding. S4.3 now states that the complete pixel content of every page travels base64'd over unauthenticated plaintext HTTP - not merely 'a request is made'. S4.5's TOCTOU window is now known to extend to base64 encode time, per page, because the client re-reads the file at request time."
+      - "Two structural themes for porting: absent bounds (no job timeout, output cap, input cap, queue bound, per-drain budget, or temp-space check) and errors that misdirect (S5.1, S5.2, S5.3, D2.10 are one weakness in four places - the app asserts causes it has not established, which is what convention C03 exists to prevent)."
+      - "The real security exposure is untrusted binary parsing (pymupdf.open, Image.open) with no size limit and PyMuPDF uncapped - not the network. Verified clean: no secrets anywhere, and no command-injection path, with all six OS branches covered by passing tests."
+    outputs_present:
+      - findings/defect-scan-semantic/semantic-defects.md
     open_questions: []
     carry_forward: []
   porting:
-    status: pending
-    owner_notes: []
-    outputs_present: []
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/porting/reverse-engineering-bundle.md"
+      - "Validation: PASS"
+      - "Synthesized all five upstream artifacts into a self-sufficient bundle. No new source reading was needed beyond confirming the four decisions, which is the compression boundary working as intended."
+      - "All 41 defects (4 high, 16 medium, 21 low) carry a disposition and a required design consequence; each high finding also carries a sketched acceptance test, per the deep-audit guidance that a hazard without a test gets reintroduced."
+      - "Two structural conclusions drive the rewrite. The system has no notion of partial success - one decision that generates D2.1, D2.2, and half of D2.3's cost. And absent bounds are systemic: no job timeout, output cap, input cap, queue bound, per-drain budget, or free-space check."
+      - "The bundle leads with a caveat that shapes how it should be trusted: the specification is two-tier. The 1,069-line service suite passes and its contracts are verified; the ~470 lines of GUI suites error at collection, so 14 of 42 acceptance rows are asserted-not-verified. The GUI is simultaneously the only interactive surface and the least-evidenced half of the spec."
+      - "Decision 4 is new relative to the previous run: two acceptance scenarios (41, 42) describe behavior the implementation demonstrably FAILS, both found by execution. They must reach the spec as MUST rules, not observations, because a faithful port would otherwise reproduce both."
+      - "Deliberately did NOT reproduce the 42 acceptance scenarios or the full event/state tables. They are named in the Source Index with explicit deep-read triggers and routed as porting-CF3, which also requires carrying the verification-status column forward per convention C04."
+    outputs_present:
+      - findings/porting/reverse-engineering-bundle.md
     open_questions: []
-    carry_forward: []
+    carry_forward:
+      -
+        id: porting-CF1
+        kind: defer-to-phase
+        description: "The 4 high and 16 medium defects each carry a required design consequence, and the high ones a sketched acceptance test, in the Defect Synthesis section. Each must become a normative rule plus a concrete black-box scenario in the spec, not a summary."
+        deferred_reason: "The deep-audit guidance is explicit that a hazard with no test in the spec gets reintroduced by whoever implements it. Turning design consequences into normative rules with scenarios is the spec phase's rubric, not synthesis."
+        target_phase: reimplementation-spec
+      -
+        id: porting-CF2
+        kind: defer-to-phase
+        description: "Decisions 1-4 are made but not specified: break the all-or-nothing contract while preserving the no-corrupt-output half; fix the progress formula and rewrite its tests; extend the event schema and state machine together for cancellation/retry/concurrency; and carry acceptance rows 41 and 42 as MUST rules. Each needs exact normative wording, the enumerated test changes, and a build-order placement."
+        deferred_reason: "The decisions belong to synthesis; their precise wording, the list of tests they change, and their sequencing belong to the spec."
+        target_phase: reimplementation-spec
+      -
+        id: porting-CF3
+        kind: defer-to-phase
+        description: "This bundle omits the 42 black-box acceptance scenarios and the full nine-event payload schema and 22-transition state machine, pointing at them via the Source Index instead. The spec must fold the acceptance list into its own acceptance section, carrying the verification-status column forward per convention C04, and pin the event contract concretely."
+        deferred_reason: "Named in the Source Index as the two deep-read triggers. Reproducing them in the bundle would defeat the compression boundary; the spec is where they become normative - and dropping the status column would hand the implementer a harness whose weak rows look like its strong ones."
+        target_phase: reimplementation-spec
   reimplementation-spec:
     status: pending
     owner_notes: []
@@ -177,5 +150,30 @@ phases:
     open_questions: []
     carry_forward: []
 next_actions:
-  - "Begin defect-scan-semantic phase by producing findings/defect-scan-semantic/semantic-defects.md"
-post_pipeline: []
+  - "Begin reimplementation-spec phase by producing findings/reimplementation-spec/reimplementation-spec.md"
+post_pipeline:
+  -
+    id: pp-run-gui-suites
+    description: "Run the five GUI test suites on a host with tkinter and a display to resolve q-gui-tests-ever-run. They error at collection here, so it is established they cannot have passed headless; whether they pass anywhere is unknown. Determines how far the 14 asserted-not-verified acceptance rows can be trusted."
+    source_phase: porting
+    status: pending
+  -
+    id: pp-fix-gui-skip-guard
+    description: "Fix the headless-skip guard in the five GUI suites (D1.6): guard the import with importlib.util.find_spec('tkinter') plus a module-level skipUnless, or move 'import app' inside the existing try in setUp. Independent of any port and worth doing in the Python codebase directly - it is what hid ~470 lines of unverified contracts."
+    source_phase: porting
+    status: pending
+  -
+    id: pp-measure-queue-depth
+    description: "Measure steady-state event-queue depth against a real GPU-backed model on a multi-page document to resolve q-queue-depth-under-load, which decides how urgently a port needs bounded channels (D2.5, S3.2)."
+    source_phase: porting
+    status: pending
+  -
+    id: pp-prompt-provenance
+    description: "Ask the maintainer to record how SYSTEM_PROMPT was derived and against which models it was tuned (q-prompt-provenance). A port cannot tell which clauses are load-bearing, and it is the highest-leverage setting in the system."
+    source_phase: porting
+    status: pending
+  -
+    id: pp-defect-fix-tracker
+    description: "If the defects are fixed in the existing Python codebase rather than in a port, instantiate templates/defect-fix-tracker.md with the 41 IDs from the two scan reports to log each fix, deferral, or acceptance."
+    source_phase: porting
+    status: pending
